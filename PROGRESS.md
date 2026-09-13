@@ -51,17 +51,17 @@ Phases (ordre retenu) :
 VITE_SUPABASE_URL=https://TON-PROJET.supabase.co
 VITE_SUPABASE_ANON_KEY=ta-cle-anon-publique
 ```
-`src/lib/supabaseClient.js` lit ces deux variables via `import.meta.env` et
+`supabaseClient.js` lit ces deux variables via `import.meta.env` et
 expose `isSupabaseConfigured` (true seulement si les deux sont renseignées) —
 confirmé correct à la lecture, logique cohérente avec tout le reste du code.
 
-**Config Supabase (SQL)** : 1 schéma de base (`supabase/schema.sql`) + 3
-migrations additives, à exécuter dans cet ordre :
+**Config Supabase (SQL)** : 1 schéma de base (`schema.sql`) + 5 fichiers SQL
+additifs, à exécuter dans cet ordre :
 1. `schema.sql`
-2. `migrations/20260822_p1_security.sql`
-3. `migrations/20260822_p2_creator_accounts.sql`
-4. `migrations/20260822_p2_creator_experience.sql`
-5. `migrations/20260822_p3_social_experience.sql`
+2. `20260822_p1_security.sql`
+3. `20260822_p2_creator_accounts.sql`
+4. `20260822_p2_creator_experience.sql`
+5. `20260822_p3_social_experience.sql`
 
 Cet ordre n'était pas documenté explicitement avant — je l'ai déduit des
 dépendances entre fichiers (ex. `p1_security.sql` référence des tables créées
@@ -206,7 +206,7 @@ Le streak, lui, n'avait tout simplement aucun code d'écriture nulle part
 
 ### Corrections apportées
 
-1. **Nouvelle migration** `supabase/migrations/20260822_p4_progress_persistence.sql` :
+1. **Nouvelle migration** `20260822_p4_progress_persistence.sql` :
    - `increment_xp(p_amount)` : RPC sécurisée, montants limités à {5,10,15,20}
      (les seuls utilisés dans l'app) pour empêcher un appel direct avec un
      montant arbitraire.
@@ -274,3 +274,105 @@ manquant dans `index.html`.
 Reprendre la Phase 2 (fiabilisation des parcours principaux) si d'autres
 bugs sont trouvés, sinon passer directement à la préparation du build bêta
 (Phase 8 anticipée) puisque c'était la demande explicite pour cette session.
+
+## Session de développement autonome — persistance et assets
+
+### Statut : ✅ Implémentée, build local bloqué par `spawn EPERM`
+
+- Les résultats de quiz sont enregistrés dans `quiz_results`, rechargés à la
+  connexion et affichés dans l'écran de résultat.
+- Le calcul final du quiz inclut désormais la dernière réponse, qui pouvait
+  être exclue par la mise à jour asynchrone de l'état React.
+- Les notifications sociales Supabase sont rechargées, affichées avec leur
+  état lu/non lu, puis marquées comme lues à l'ouverture.
+- Les assets fournis (`favicon.svg`, `icon-192.png`, `icon-512.png`) ont été
+  copiés dans `public/`, emplacement attendu par Vite et le manifeste PWA.
+- Le fil communautaire annule maintenant les publications, commentaires et
+  republications optimistes lorsque Supabase refuse l'écriture; les uploads
+  de média orphelins sont supprimés dans ce cas.
+- Les messages privés ont un rollback d'envoi et la migration P3 crée une
+  notification serveur pour le destinataire, sans doubler les notifications
+  des réponses aux Stories.
+
+## Test d'intégration Supabase — état externe
+
+### Statut : ⚠️ Bloqué par le schéma Supabase non installé
+
+Les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont présentes
+et le projet Supabase est joignable. Les sondes REST ont toutefois retourné
+`PGRST205` pour `profiles`, `messages`, `quiz_results` et `notifications`,
+ainsi que `PGRST202` pour `send_story_reply`. Le projet ciblé n'a donc pas
+encore reçu le schéma et les migrations, ou le fichier `.env` pointe vers un
+projet Supabase différent.
+
+Action externe requise dans Supabase SQL Editor, dans cet ordre :
+
+1. `schema.sql`
+2. `20260822_p1_security.sql`
+3. `20260822_p2_creator_accounts.sql`
+4. `20260822_p2_creator_experience.sql`
+5. `20260822_p3_social_experience.sql`
+6. `20260822_p4_progress_persistence.sql`
+6. `20260822_p4_progress_persistence.sql`
+
+La migration P3 a été renforcée pour supprimer ses policies avant de les
+recréer, ce qui la rend réellement rejouable. Elle installe aussi le trigger
+`trg_notify_message_recipient` et la fonction `notify_message_recipient()`.
+Après exécution, le test d'intégration à deux comptes pourra être relancé.
+
+## Vérification après installation Supabase — état actuel
+
+Les sondes anonymes ont été relancées après installation du schéma :
+
+- `profiles`, `posts`, `post_comments`, `post_reposts`, `stories`,
+  `story_replies`, `notifications`, `quiz_results` et `messages` répondent
+  correctement via PostgREST.
+- `send_story_reply()` est présent et refuse correctement un appel sans
+  authentification.
+- Les credentials de test sont désormais disponibles localement dans
+  `.env.test.local`; ils ne sont pas versionnés.
+- Les tests authentifiés ont ensuite été exécutés avec succès; le détail est
+  consigné dans la section suivante.
+
+## Test d'intégration authentifié — ✅ réussi
+
+Le lanceur a été exécuté avec deux sessions Supabase réelles. Le parcours
+positif a validé :
+
+- authentification et récupération des profils A/B ;
+- publications texte et avec média ;
+- upload et lecture publique des médias `posts` et `stories` ;
+- commentaires et republications entre comptes ;
+- création d'une Story et réponse via `send_story_reply()` ;
+- messages privés entre les deux comptes ;
+- notifications `story_reply` et `message`, puis passage de non lues à lues ;
+- insertion et récupération de `quiz_results` ;
+- `increment_xp()` et `bump_daily_streak()`.
+
+Les scénarios de sécurité et de rollback ont aussi été vérifiés : montant XP
+invalide, publication au nom d'un autre utilisateur, commentaire vide,
+upload Storage dans le dossier d'un autre utilisateur et réponse à une Story
+inexistante sont tous rejetés sans création de donnée indésirable.
+
+Chaque exécution nettoie les posts, Stories et fichiers Storage créés. Un
+message privé et un résultat de quiz restent en base, car le schéma ne donne
+pas de policy de suppression côté client pour ces deux tables.
+
+### Vérifications
+
+- `git diff --check` : ✅ aucune erreur de whitespace.
+- `npm run build` : ⚠️ Vite atteint la phase de chargement, puis
+  l'environnement bloque la création du processus esbuild avec `spawn EPERM`.
+- Transformation JSX directe par esbuild : bloquée par le même `spawn EPERM`.
+
+## Préparation propre du dépôt — état actuel
+
+- `.gitignore` ajouté pour exclure les fichiers `.env*` locaux, les
+  credentials de test, `node_modules/`, les sorties de build, caches, logs et
+  fichiers temporaires.
+- `git ls-files` ne contient aucun fichier d'environnement, credential ou
+  secret; les valeurs locales ne sont pas affichées ni versionnées.
+- `README.md` utilise maintenant les chemins réels à la racine du projet et
+  décrit séparément l'idempotence partielle de `schema.sql` et P1.
+- La logique fonctionnelle validée par les tests d'intégration n'a pas été
+  modifiée.

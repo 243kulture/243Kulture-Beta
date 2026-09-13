@@ -13,8 +13,11 @@ create table if not exists post_comments (
   created_at timestamptz default now()
 );
 alter table post_comments enable row level security;
+drop policy if exists "Connected users can read comments" on post_comments;
 create policy "Connected users can read comments" on post_comments for select using (auth.role() = 'authenticated');
+drop policy if exists "Users create their own comments" on post_comments;
 create policy "Users create their own comments" on post_comments for insert with check (auth.uid() = user_id);
+drop policy if exists "Users delete their own comments" on post_comments;
 create policy "Users delete their own comments" on post_comments for delete using (auth.uid() = user_id);
 
 create table if not exists post_reposts (
@@ -25,8 +28,11 @@ create table if not exists post_reposts (
   unique(post_id, user_id)
 );
 alter table post_reposts enable row level security;
+drop policy if exists "Connected users can read reposts" on post_reposts;
 create policy "Connected users can read reposts" on post_reposts for select using (auth.role() = 'authenticated');
+drop policy if exists "Users create their own reposts" on post_reposts;
 create policy "Users create their own reposts" on post_reposts for insert with check (auth.uid() = user_id);
+drop policy if exists "Users delete their own reposts" on post_reposts;
 create policy "Users delete their own reposts" on post_reposts for delete using (auth.uid() = user_id);
 
 create table if not exists notifications (
@@ -39,7 +45,9 @@ create table if not exists notifications (
   created_at timestamptz default now()
 );
 alter table notifications enable row level security;
+drop policy if exists "Users read their notifications" on notifications;
 create policy "Users read their notifications" on notifications for select using (auth.uid() = user_id);
+drop policy if exists "Users mark their notifications read" on notifications;
 create policy "Users mark their notifications read" on notifications for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create table if not exists story_replies (
@@ -51,7 +59,36 @@ create table if not exists story_replies (
   created_at timestamptz default now()
 );
 alter table story_replies enable row level security;
+drop policy if exists "Participants read story replies" on story_replies;
 create policy "Participants read story replies" on story_replies for select using (auth.uid() = sender_id or auth.uid() = recipient_id);
+
+-- Notify message recipients server-side so private messages appear in the
+-- same notification center as Story replies. Security definer is required
+-- because clients may insert messages but must not insert notifications.
+create or replace function public.notify_message_recipient()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.recipient_id is distinct from new.sender_id then
+    insert into notifications(user_id, actor_id, type, text)
+    values (
+      new.recipient_id,
+      new.sender_id,
+      case when new.text like 'Réponse à ta Story : %' then 'story_reply' else 'message' end,
+      case when new.text like 'Réponse à ta Story : %' then 'Nouvelle réponse à ta Story' else 'Nouveau message privé' end
+    );
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_message_recipient on messages;
+create trigger trg_notify_message_recipient
+after insert on messages
+for each row execute function public.notify_message_recipient();
 
 create or replace function public.send_story_reply(p_story_id uuid, p_text text)
 returns void
@@ -75,8 +112,6 @@ begin
   insert into messages(sender_id, recipient_id, text)
   values (auth.uid(), v_recipient, 'Réponse à ta Story : ' || v_text);
 
-  insert into notifications(user_id, actor_id, type, text)
-  values (v_recipient, auth.uid(), 'story_reply', 'Nouvelle réponse à ta Story');
 end;
 $$;
 revoke all on function public.send_story_reply(uuid, text) from public;
@@ -86,10 +121,13 @@ insert into storage.buckets (id, name, public)
 values ('posts', 'posts', true)
 on conflict (id) do update set public = true;
 
+drop policy if exists "Post media visible to connected users" on storage.objects;
 create policy "Post media visible to connected users"
 on storage.objects for select using (bucket_id = 'posts');
+drop policy if exists "Users upload their post media" on storage.objects;
 create policy "Users upload their post media"
 on storage.objects for insert with check (bucket_id = 'posts' and auth.uid()::text = (storage.foldername(name))[1]);
+drop policy if exists "Users delete their post media" on storage.objects;
 create policy "Users delete their post media"
 on storage.objects for delete using (bucket_id = 'posts' and auth.uid()::text = (storage.foldername(name))[1]);
 

@@ -44,7 +44,7 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx...
 
 ### Créer les tables
 Dashboard Supabase → **SQL Editor → New query** → colle tout le contenu du
-fichier `supabase/schema.sql` de ce projet → **Run**.
+fichier `schema.sql` de ce projet → **Run**.
 
 Ça crée toutes les tables (profils, favoris, amis, publications, messages,
 stories, votes de débats, participation aux événements, quiz, badges,
@@ -54,15 +54,17 @@ configurée pour que chacun ne puisse lire/modifier que ce qui le concerne.
 ### Ordre d'exécution (important)
 Exécute les fichiers SQL dans cet ordre exact (chaque migration dépend de la
 précédente) :
-1. `supabase/schema.sql`
-2. `supabase/migrations/20260822_p1_security.sql`
-3. `supabase/migrations/20260822_p2_creator_accounts.sql`
-4. `supabase/migrations/20260822_p2_creator_experience.sql`
-5. `supabase/migrations/20260822_p3_social_experience.sql`
-6. `supabase/migrations/20260822_p4_progress_persistence.sql`
+1. `schema.sql`
+2. `20260822_p1_security.sql`
+3. `20260822_p2_creator_accounts.sql`
+4. `20260822_p2_creator_experience.sql`
+5. `20260822_p3_social_experience.sql`
+6. `20260822_p4_progress_persistence.sql`
 
-Toutes les migrations sont idempotentes (rejouables sans erreur), mais
-l'ordre doit être respecté au moins la première fois.
+Les migrations P2, P3 et P4 sont conçues pour être rejouables. `schema.sql`
+et P1 ne sont pas totalement idempotents : leurs policies initiales ou
+remplacées peuvent provoquer une erreur si elles sont rejouées telles quelles.
+Sur une base vierge, l'ordre ci-dessus est sûr et doit être respecté.
 
 > **Important pour un projet Supabase déjà existant** : si tu as déjà exécuté
 > les migrations 1 à 5 sur ton projet Supabase avant cette version bêta,
@@ -152,10 +154,33 @@ tel qu'il l'a laissé, même sur un autre appareil.
 - Sans Supabase configuré, l'onglet Amis retombe automatiquement sur
   `COMMUNITY_MEMBERS` (profils de démonstration) exactement comme avant —
   utile pour présenter/tester l'app sans backend
-- Les résultats du quiz (score, bonnes réponses) ne sont pas historisés
-  dans une table dédiée : seuls l'XP et le badge de fin de quiz obtenus
-  sont enregistrés (la table `quiz_results` existe dans le schéma mais
-  n'est pas encore utilisée par l'app)
+- Les notifications éditoriales de la page d'accueil restent locales. Les
+  notifications sociales générées par Supabase (par exemple une réponse à
+  une Story ou un message privé) sont, elles, rechargées depuis la table
+  `notifications` et marquées comme lues à l'ouverture.
+
+Les résultats de quiz sont désormais historisés dans `quiz_results` quand
+Supabase est configuré, puis rechargés à la connexion et affichés dans
+l'écran de résultat. Le score final inclut bien la dernière réponse donnée.
+
+La migration `20260822_p3_social_experience.sql` crée également une
+notification serveur pour chaque nouveau message privé. Si la migration P3
+était déjà appliquée, il faut la rejouer pour installer ce trigger idempotent.
+
+### Test d'intégration Supabase
+
+Le projet Supabase configuré répond correctement et expose les tables
+applicatives ainsi que la RPC `send_story_reply`. Le test d'intégration réel
+entre deux comptes confirmés passe désormais pour les profils, publications,
+médias, Stories, commentaires, republications, messages, notifications,
+quiz, XP et streak. Les scénarios négatifs RLS et rollback testés passent
+également. Le lanceur utilise un fichier local non versionné
+`.env.test.local`.
+
+Le test laisse volontairement un message privé et un résultat de quiz par
+exécution : les policies client du schéma n'autorisent pas leur suppression.
+Ces résidus sont attendus pour des comptes de test et ne concernent pas les
+posts, Stories ou fichiers Storage, qui sont nettoyés automatiquement.
 
 ---
 
@@ -171,13 +196,11 @@ tel qu'il l'a laissé, même sur un autre appareil.
 │   ├── icon-192.png           ← icône PWA (placeholder)
 │   └── icon-512.png           ← icône PWA (placeholder)
 ├── .env.example             ← à copier en .env
-├── supabase/
-│   └── schema.sql           ← à exécuter dans Supabase SQL Editor
-└── src/
-    ├── main.jsx              ← point d'entrée React
-    ├── App.jsx                ← toute l'application (le prototype qu'on a construit)
-    └── lib/
-        └── supabaseClient.js  ← connexion au backend
+├── schema.sql                 ← schéma initial Supabase
+├── 20260822_p*_*.sql          ← migrations Supabase, à exécuter dans l'ordre
+├── main.jsx                   ← point d'entrée React
+├── App.jsx                    ← application principale
+└── supabaseClient.js          ← connexion au backend
 ```
 
 ---
@@ -199,7 +222,7 @@ tel qu'il l'a laissé, même sur un autre appareil.
 
 La version actuelle utilise le bucket Supabase Storage `stories` pour les photos et vidéos.
 
-1. Ouvrir `supabase/schema.sql` dans le SQL Editor de Supabase et exécuter le script (ou au minimum la section `STORAGE DES STORIES`).
+1. Ouvrir `schema.sql` dans le SQL Editor de Supabase et exécuter le script (ou au minimum la section `STORAGE DES STORIES`).
 2. Vérifier que `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont configurées dans `.env`.
 3. Le bucket `stories` est créé automatiquement par le SQL et les uploads sont rangés dans un dossier portant l'ID de l'utilisateur.
 4. Les Stories visibles dans l'app sont limitées aux 24 dernières heures.
@@ -220,7 +243,7 @@ La V1 ajoute une première expérience créateur sans modifier les fonctionnalit
 
 ### Migration Supabase
 
-Après les migrations P1 et P2 comptes créateurs, exécuter `supabase/migrations/20260822_p2_creator_experience.sql`.
+Après les migrations P1 et P2 comptes créateurs, exécuter `20260822_p2_creator_experience.sql`.
 
 ### Limites V1
 
@@ -239,7 +262,7 @@ Cette version ajoute de façon additive :
 - republication et partage ;
 - photos/vidéos dans les publications ;
 - réponses aux Stories avec message + notification via RPC sécurisé ;
-- migration `supabase/migrations/20260822_p3_social_experience.sql`.
+- migration `20260822_p3_social_experience.sql`.
 
 Cette migration est additive et ne remplace pas les migrations P1/P2 existantes.
 
@@ -253,7 +276,7 @@ d'enregistrer des badges. Résultat une fois Supabase configuré : aucun gain
 d'XP, aucun badge enregistré, aucune réaction de débat sauvegardée, et un
 streak qui restait bloqué à zéro.
 
-La migration `supabase/migrations/20260822_p4_progress_persistence.sql`
+La migration `20260822_p4_progress_persistence.sql`
 corrige ces quatre points en ajoutant deux fonctions RPC sécurisées
 (`increment_xp`, `bump_daily_streak`) et en restaurant la permission
 d'insertion sur la table `badges`. Le fonctionnement visible par

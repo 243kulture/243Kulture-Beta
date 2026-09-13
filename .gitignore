@@ -1,0 +1,29 @@
+# Local environment and test credentials
+.env
+.env.*
+!.env.example
+.env.test.local
+.env.test.local.txt
+
+# Dependencies and generated build output
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Operating-system and editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1027,6 +1027,7 @@ export default function App() {
   const [replyingToComment, setReplyingToComment] = useState(null);
   const [repostedPostIds, setRepostedPostIds] = useState([]);
   const [socialNotifications, setSocialNotifications] = useState([]);
+  const [quizHistory, setQuizHistory] = useState([]);
   const [storyReplyDraft, setStoryReplyDraft] = useState("");
   const [legalTab, setLegalTab] = useState("cgu"); // cgu | confidentialite
   const [followedArtists, setFollowedArtists] = useState([]);
@@ -1034,6 +1035,7 @@ export default function App() {
   const [quizScore, setQuizScore] = useState(0);
   const [quizAnswer, setQuizAnswer] = useState(null); // index selected for current question
   const [quizDone, setQuizDone] = useState(false);
+  const [lastQuizBadgeId, setLastQuizBadgeId] = useState(null);
   const [badges, setBadges] = useState([]);
   const [xp, setXp] = useState(0);
   const [xpToast, setXpToast] = useState(null); // {id, amount}
@@ -1050,6 +1052,7 @@ export default function App() {
     { id: "post2", author: "Josué T.", icon: "🕺", time: "Hier", text: "Retour sur Creative Currencies à Kinshasa, une organisation incroyable 🔥" },
   ]);
   const [newPost, setNewPost] = useState("");
+  const [communityMessage, setCommunityMessage] = useState("");
   const [postReactions, setPostReactions] = useState({}); // { postId: emoji }
   const [streakDays, setStreakDays] = useState(0);
   const [myDisplayName, setMyDisplayName] = useState("");
@@ -1072,6 +1075,7 @@ export default function App() {
   const [activeConv, setActiveConv] = useState(null); // friend id
   const [conversations, setConversations] = useState({}); // { friendId: [{from:'me'|'them', text}] }
   const [msgInput, setMsgInput] = useState("");
+  const [messageError, setMessageError] = useState("");
   const [stories, setStories] = useState(() => getStorySeed("fr"));
   const [seenStories, setSeenStories] = useState([]);
   const [activeStoryId, setActiveStoryId] = useState(null);
@@ -1132,7 +1136,15 @@ export default function App() {
     setScreen("player");
   };
 
-  const openNotifs = () => { setNotifDot(false); setScreen("notifications"); };
+  const openNotifs = () => {
+    setNotifDot(false);
+    setSocialNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    if (isSupabaseConfigured && user?.id) {
+      supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null)
+        .then(({ error }) => { if (error) console.warn("notifications/read", error.message); });
+    }
+    setScreen("notifications");
+  };
 
   const openArticle = (id) => { setArticleId(id); setScreen("article"); };
   const openInsta = (id) => { setArticleId(id); setScreen("article"); };
@@ -1162,7 +1174,7 @@ export default function App() {
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) return;
     (async () => {
-      const [profileRes, favRes, followRes, friendRes, badgeRes, discRes, goingRes, voteRes, debateReactRes] = await Promise.all([
+      const [profileRes, favRes, followRes, friendRes, badgeRes, discRes, goingRes, voteRes, debateReactRes, quizHistoryRes, notificationRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("favorites").select("*").eq("user_id", user.id),
         supabase.from("followed_artists").select("artist_id").eq("user_id", user.id),
@@ -1172,6 +1184,8 @@ export default function App() {
         supabase.from("event_attendance").select("event_id").eq("user_id", user.id),
         supabase.from("debate_votes").select("debate_id, option_index").eq("user_id", user.id),
         supabase.from("debate_reactions").select("debate_id, emoji").eq("user_id", user.id),
+        supabase.from("quiz_results").select("id, score, total, completed_at").eq("user_id", user.id).order("completed_at", { ascending: false }).limit(10),
+        supabase.from("notifications").select("id, type, text, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
       ]);
       if (profileRes.data) {
         const profile = profileRes.data;
@@ -1203,6 +1217,17 @@ export default function App() {
         const reactions = {};
         debateReactRes.data.forEach((r) => { reactions[r.debate_id] = r.emoji; });
         setDebateReactions(reactions);
+      }
+      if (!quizHistoryRes.error && quizHistoryRes.data) setQuizHistory(quizHistoryRes.data);
+      if (!notificationRes.error && notificationRes.data) {
+        setSocialNotifications(notificationRes.data.map((n) => ({
+          id: n.id,
+          text: n.text,
+          time: new Date(n.created_at).toLocaleString(lang === "fr" ? "fr-BE" : lang, { dateStyle: "short", timeStyle: "short" }),
+          unread: !n.read_at,
+          icon: n.type === "story_reply" ? "💬" : "🔔",
+        })));
+        setNotifDot(notificationRes.data.some((n) => !n.read_at));
       }
       // Streak quotidien : calculé et écrit côté serveur (RPC sécurisée),
       // une fois par session dès que l'utilisateur est identifié.
@@ -1436,21 +1461,29 @@ export default function App() {
       addXp(10);
     }
   };
-  const nextQuiz = () => {
+  const nextQuiz = async () => {
     if (quizIndex + 1 < QUIZ_QUESTIONS.length) {
       setQuizIndex((i) => i + 1);
       setQuizAnswer(null);
     } else {
+      const finalScore = quizScore + (quizAnswer === QUIZ_QUESTIONS[quizIndex].correct ? 1 : 0);
       setQuizDone(true);
+      setQuizScore(finalScore);
       addXp(20);
-      const badgeId = quizScore >= 4 ? "badge1" : quizScore >= 2 ? "badge2" : "badge3";
+      const badgeId = finalScore >= 4 ? "badge1" : finalScore >= 2 ? "badge2" : "badge3";
+      setLastQuizBadgeId(badgeId);
       if (!badges.includes(badgeId)) {
         setBadges((b) => [...b, badgeId]);
         if (isSupabaseConfigured && user?.id) dbInsert("badges", { user_id: user.id, badge_id: badgeId });
       }
+      if (isSupabaseConfigured && user?.id) {
+        const { data, error } = await supabase.from("quiz_results").insert({ user_id: user.id, score: finalScore, total: QUIZ_QUESTIONS.length }).select("id, score, total, completed_at").single();
+        if (!error && data) setQuizHistory((prev) => [data, ...prev].slice(0, 10));
+        if (error) console.warn("quiz_results", error.message);
+      }
     }
   };
-  const restartQuiz = () => { setQuizIndex(0); setQuizScore(0); setQuizAnswer(null); setQuizDone(false); };
+  const restartQuiz = () => { setQuizIndex(0); setQuizScore(0); setQuizAnswer(null); setQuizDone(false); setLastQuizBadgeId(null); };
 
   // ---------- Annuaire d'utilisateurs réel (recherche + amis) ----------
   // Tant que Supabase n'est pas configuré, l'UI retombe sur COMMUNITY_MEMBERS
@@ -1533,21 +1566,29 @@ export default function App() {
 
   const addPost = async () => {
     if (!newPost.trim() && !postMedia) return;
+    setCommunityMessage("");
     const localId = "post" + Date.now();
     let mediaUrl = postMediaPreview;
+    let uploadedPostPath = null;
     if (isSupabaseConfigured && user?.id && postMedia) {
       const path = `${user.id}/${Date.now()}-${postMedia.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const { error: uploadError } = await supabase.storage.from("posts").upload(path, postMedia, { upsert: false, contentType: postMedia.type });
-      if (!uploadError) {
-        const { data } = supabase.storage.from("posts").getPublicUrl(path);
-        mediaUrl = data?.publicUrl || mediaUrl;
-      }
+      if (uploadError) { setCommunityMessage("Impossible d'envoyer ce média. Vérifie le stockage Supabase puis réessaie."); return; }
+      uploadedPostPath = path;
+      const { data } = supabase.storage.from("posts").getPublicUrl(path);
+      mediaUrl = data?.publicUrl || null;
     }
     const localPost = { id: localId, author: "Toi", icon: "🎤", time: "À l'instant", text: newPost.trim(), media_url: mediaUrl, media_type: postMediaType };
     setPosts((prev) => [localPost, ...prev]);
     if (isSupabaseConfigured && user?.id) {
       const { data, error } = await supabase.from("posts").insert({ user_id: user.id, text: newPost.trim() || "", media_url: mediaUrl || null, media_type: postMediaType || null }).select("id").single();
-      if (!error && data?.id) setPosts((prev) => prev.map((p) => p.id === localId ? { ...p, id: data.id } : p));
+      if (error || !data?.id) {
+        if (uploadedPostPath) await supabase.storage.from("posts").remove([uploadedPostPath]);
+        setPosts((prev) => prev.filter((p) => p.id !== localId));
+        setCommunityMessage("Impossible de publier pour le moment. Réessaie dans un instant.");
+        return;
+      }
+      setPosts((prev) => prev.map((p) => p.id === localId ? { ...p, id: data.id } : p));
     }
     setNewPost(""); setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null);
     addXp(5);
@@ -1561,14 +1602,28 @@ export default function App() {
     setCommentsByPost((prev) => ({ ...prev, [postId]: [...(prev[postId] || []), local] }));
     setCommentDrafts((prev) => ({ ...prev, [key]: "" }));
     setReplyingToComment(null);
-    if (isSupabaseConfigured) await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, text, parent_id: parentId });
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, text, parent_id: parentId });
+      if (error) {
+        setCommentsByPost((prev) => ({ ...prev, [postId]: (prev[postId] || []).filter((comment) => comment.id !== local.id) }));
+        setCommentDrafts((prev) => ({ ...prev, [key]: text }));
+        setCommunityMessage("Commentaire non envoyé. Réessaie dans un instant.");
+      }
+    }
   };
 
   const repostPost = async (post) => {
     if (!user?.id || repostedPostIds.includes(post.id)) return;
     setRepostedPostIds((prev) => [post.id, ...prev]);
     setPosts((prev) => [{ ...post, id: `repost-${Date.now()}`, author: "Toi", time: "À l'instant", repost_of: post.id }, ...prev]);
-    if (isSupabaseConfigured) await supabase.from("post_reposts").insert({ post_id: post.id, user_id: user.id });
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from("post_reposts").insert({ post_id: post.id, user_id: user.id });
+      if (error) {
+        setRepostedPostIds((prev) => prev.filter((id) => id !== post.id));
+        setPosts((prev) => prev.filter((item) => !(item.repost_of === post.id && item.author === "Toi")));
+        setCommunityMessage("Republication non enregistrée. Réessaie dans un instant.");
+      }
+    }
   };
   const reactPost = async (postId, emoji) => {
     const removing = postReactions[postId] === emoji;
@@ -1594,16 +1649,23 @@ export default function App() {
     setSocialNotifications((prev) => [{ id: Date.now(), text: "Réponse à la Story envoyée", time: "À l'instant" }, ...prev]);
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!msgInput.trim() || !activeConv) return;
     const text = msgInput.trim();
+    const localId = `m-${Date.now()}`;
+    setMessageError("");
     setConversations((prev) => ({
       ...prev,
-      [activeConv]: [...(prev[activeConv] || []), { from: "me", text }],
+      [activeConv]: [...(prev[activeConv] || []), { id: localId, from: "me", text }],
     }));
     setMsgInput("");
     if (isSupabaseConfigured && user?.id) {
-      dbInsert("messages", { sender_id: user.id, recipient_id: activeConv, text });
+      const { error } = await supabase.from("messages").insert({ sender_id: user.id, recipient_id: activeConv, text });
+      if (error) {
+        setConversations((prev) => ({ ...prev, [activeConv]: (prev[activeConv] || []).filter((message) => message.id !== localId) }));
+        setMsgInput(text);
+        setMessageError("Message non envoyé. Réessaie dans un instant.");
+      }
     }
   };
 
@@ -3200,7 +3262,17 @@ export default function App() {
                 <div className="quiz-result">
                   <span className="qic">🏆</span>
                   <div className="qscore">{quizScore} / {QUIZ_QUESTIONS.length} {t.quiz_score_of}</div>
-                  <div className="qbadge">🎖️ {t.quiz_result_badge} {badgeLabel(badges[badges.length - 1])}</div>
+                  <div className="qbadge">🎖️ {t.quiz_result_badge} {badgeLabel(lastQuizBadgeId || badges[badges.length - 1])}</div>
+                  {quizHistory.length > 0 && (
+                    <div className="note" style={{ marginTop: 14, textAlign: "left" }}>
+                      {quizHistory.slice(0, 3).map((result) => (
+                        <div key={result.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
+                          <span>{new Date(result.completed_at).toLocaleDateString(lang === "fr" ? "fr-BE" : lang)}</span>
+                          <strong>{result.score}/{result.total}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="toggle-btn selected" style={{ marginTop: 20 }} onClick={restartQuiz}>{t.quiz_replay}</div>
                 </div>
               )}
@@ -3284,6 +3356,7 @@ export default function App() {
 
                   {communityTab === "feed" && (
                     <>
+                      {communityMessage && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{communityMessage}</div>}
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
                           onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
@@ -3382,6 +3455,7 @@ export default function App() {
                 <div key={i} className={`msg-bubble ${m.from === "me" ? "me" : "them"}`}>{m.text}</div>
               ))}
             </div>
+            {messageError && <div className="note" style={{ color: "var(--red)", padding: "0 14px 8px" }}>{messageError}</div>}
             <div className="msg-input-row">
               <input type="text" placeholder={t.msg_placeholder} value={msgInput}
                 onChange={(e) => setMsgInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} />
@@ -3533,7 +3607,7 @@ export default function App() {
               <div><div className="htitle">{t.notif_title}</div><div className="hsub">243Kulture</div></div>
             </div>
             <div className="content">
-              {[...socialNotifications.map((n) => ({ ...n, unread: true, icon: "💬" })), ...NOTIFS].map((n, i) => (
+              {[...socialNotifications, ...NOTIFS].map((n, i) => (
                 <div className={`notif-item${n.unread ? " unread" : ""}`} key={n.id || i}>
                   <div className="nic">{n.icon}</div>
                   <div><div className="ntxt">{n.text}</div><div className="ntime">{n.time}</div></div>
