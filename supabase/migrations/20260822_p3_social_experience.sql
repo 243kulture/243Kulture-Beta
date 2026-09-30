@@ -50,6 +50,9 @@ drop policy if exists "Users read their notifications" on notifications;
 create policy "Users read their notifications" on notifications for select using (auth.uid() = user_id);
 drop policy if exists "Users mark their notifications read" on notifications;
 create policy "Users mark their notifications read" on notifications for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- Mark-read needs table UPDATE privilege in addition to the RLS policy.
+grant select, update on table public.notifications to authenticated;
+revoke insert, delete on table public.notifications from authenticated, anon;
 
 create table if not exists story_replies (
   id uuid primary key default gen_random_uuid(),

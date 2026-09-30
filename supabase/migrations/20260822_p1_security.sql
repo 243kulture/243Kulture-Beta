@@ -29,6 +29,8 @@ execute function prevent_client_xp_edit();
 revoke update (xp, streak_days) on profiles from authenticated;
 
 drop policy if exists "Chacun gère ses propres résultats de quiz" on quiz_results;
+drop policy if exists "Lecture de ses propres résultats de quiz" on quiz_results;
+drop policy if exists "Insertion de ses propres résultats de quiz" on quiz_results;
 create policy "Lecture de ses propres résultats de quiz"
 on quiz_results for select
 using (auth.uid() = user_id);
@@ -37,6 +39,7 @@ on quiz_results for insert
 with check (auth.uid() = user_id);
 
 drop policy if exists "Chacun gère ses propres badges" on badges;
+drop policy if exists "Lecture de ses propres badges" on badges;
 create policy "Lecture de ses propres badges"
 on badges for select
 using (auth.uid() = user_id);

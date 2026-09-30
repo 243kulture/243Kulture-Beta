@@ -46,10 +46,13 @@ Identité visuelle, logo, nav principale et Creator Experience V1 **conservés**
 - Creator flow UI
 - **Build Vite OK** (chunk size warning PWA uniquement)
 
-## D. Ce qui est branché dans le code (Supabase requis — non testé live)
+## D. Ce qui est branché dans le code (Supabase — validé live 2026-09-30)
 
-Sans projet `.env`, **aucune** de ces voies n'a été validée contre une vraie
-base. Le code et le SQL sont présents :
+Projet `243kulture-Beta` : voir
+`/cursor/stores/self/docs/VALIDATION_LIVE_SUPABASE.md`.
+Deux comptes e-mail + migrations P1→P4b : friend flow, messages, notifs,
+XP/streak/quiz/badges, debate reactions, storage stories/posts, langue —
+**OK**. Google OAuth / Meta / TikTok / push : **NOT TESTED**.
 
 | Domaine | Mécanisme |
 |---|---|
@@ -88,7 +91,7 @@ visuelle, nav, concept, Creator V1.
 - Friendships : plus d'INSERT client après P4b
 - Storage scoped par `auth.uid()` folder
 - `admin_approve_creator` réservé service_role / postgres
-- **Non audité en runtime** (pas de pen-test, pas de projet live)
+- Runtime live : grants/RLS/RPC exercés (pas un pen-test)
 
 ## G. Build
 
@@ -107,19 +110,20 @@ PWA: generateSW OK, icons public/icon-192.png + icon-512.png
 | Audit final | `/cursor/stores/self/docs/AUDIT_FINAL_243KULTURE.md` |
 | ZIP final | `/cursor/stores/self/docs/243Kulture_Final_Version.zip` |
 | Validation P4 (dans l'app) | `supabase/VALIDATION_P4.md` |
+| Validation live Supabase | `/cursor/stores/self/docs/VALIDATION_LIVE_SUPABASE.md` |
 | Worktree | `/workspace/243kulture-work` |
 
 ZIP exclut : `node_modules/`, `dist/`, `.git/`, `.env*`, logs, caches.
 
-## I. Non testé sans Supabase `.env`
+## I. Restant non testé / hors live
 
-- Connexion Google / e-mail réelle, sessions, reset password
-- Toute écriture / lecture RLS et RPCs (`increment_xp`, invitations, story reply…)
-- Uploads Storage stories / posts
-- Notifications temps réel entre deux comptes
+- Google OAuth end-to-end, reset password e-mail
+- Story reply RPC cross-user (accents SQL OK ; path messages OK)
 - OAuth Meta / TikTok (non configurés)
 - Déploiement Vercel + redirect URLs
-- PWA install sur device réel
-- Perf réseau / charge
+- PWA install device réel / perf charge
 
-Checklist manuelle amis : `supabase/VALIDATION_P4.md` dans le ZIP.
+Checklist manuelle amis : `supabase/VALIDATION_P4.md` + validation live store.
+
+### Fix live de cette passe
+- Grant `SELECT, UPDATE` sur `notifications` pour `authenticated` (mark-read).
