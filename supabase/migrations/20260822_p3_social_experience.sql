@@ -1,5 +1,6 @@
 -- 243Kulture Social Experience additive migration
 -- Comments, reposts, post media, notifications and secure story replies.
+-- Idempotente : drop policy if exists avant chaque create policy.
 
 alter table if exists posts add column if not exists media_url text;
 alter table if exists posts add column if not exists media_type text check (media_type in ('image','video') or media_type is null);
@@ -111,7 +112,7 @@ begin
 
   insert into messages(sender_id, recipient_id, text)
   values (auth.uid(), v_recipient, 'Réponse à ta Story : ' || v_text);
-
+  -- Notification créée par trg_notify_message_recipient (évite le doublon).
 end;
 $$;
 revoke all on function public.send_story_reply(uuid, text) from public;

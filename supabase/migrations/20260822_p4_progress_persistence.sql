@@ -1,13 +1,13 @@
 -- =============================================================
--- 243Kulture — Migration Priorité 4
+-- 243Kulture — Migration P4a (persistance progression)
 -- Correctifs de persistance : XP, streak, badges
 -- Date : 2026-08-22 (bêta)
--- Idempotente. N'annule ni ne modifie les migrations précédentes :
--- elle complète 20260822_p1_security.sql, dont le durcissement
--- (revoke update xp/streak_days + trigger anti-triche) avait été
--- appliqué sans jamais créer la fonction RPC de remplacement
--- permettant un gain légitime — ce qui rendait tout gain d'XP et
--- de streak impossible à enregistrer une fois Supabase configuré.
+-- Idempotente. À exécuter APRÈS 20260822_p3_social_experience.sql
+-- et AVANT 20261001_p4_friend_invitations.sql.
+-- Complète 20260822_p1_security.sql : le durcissement
+-- (revoke update xp/streak_days + trigger anti-triche) bloque les
+-- écritures client ; cette migration crée les RPC légitimes
+-- (increment_xp, bump_daily_streak) et restaure l'INSERT badges.
 -- =============================================================
 
 -- -------------------------------------------------------------

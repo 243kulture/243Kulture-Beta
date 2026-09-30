@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "./lib/supabaseClient.js";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
@@ -479,6 +479,7 @@ const I18N = {
     profile_logout: "Se déconnecter", profile_fan: "Fan de rumba", profile_member: "Membre de la communauté 243Kulture",
     sec_connexion: "Connexion", connexion_note: "Connecte-toi pour retrouver tes favoris et recevoir des notifications personnalisées.",
     btn_google: "Continuer avec Google", btn_meta: "Continuer avec Meta", btn_tiktok: "Continuer avec TikTok",
+    btn_signup: "Créer un compte", btn_login: "Se connecter", auth_create_title: "Créer ton compte", auth_have_account: "J'ai déjà un compte", auth_connecting: "Connexion…", auth_recover_title: "Récupérer ton compte",
     auth_mock_note: "Maquette : le vrai bouton demandera l'intégration OAuth de chaque plateforme (clés API + backend) avant la mise en prod.",
     sec_community: "Ma communauté", my_friends: "Mes amis 243Kulture", friends_count_sub: "ami(s) • Trouver des fans",
     sec_followed: "Artistes suivis", sec_badges: "Mes badges",
@@ -499,6 +500,21 @@ const I18N = {
     user_search_hint: "Cherche quelqu'un par son nom pour l'ajouter en ami.",
     friends_have: "Tu as", friends_on_app: "ami(s) sur 243Kulture.",
     add_friend: "+ Ajouter", added_friend: "✓ Ami",
+    invite_friend: "Inviter", invite_sent: "Invitation envoyée", invite_received: "Invitation reçue",
+    invite_accept: "Accepter", invite_decline: "Refuser", invite_cancel: "Annuler", invite_remove: "Retirer",
+    invites_in: "Invitations reçues", invites_out: "Invitations envoyées",
+    relation_friends: "Vous êtes amis", relation_none: "Pas encore d'amis",
+    public_profile: "Profil", view_profile: "Voir le profil",
+    friend_action_error: "Impossible d'effectuer cette action. Réessaie.",
+    friend_action_loading: "En cours...", no_invites: "Aucune invitation pour le moment.",
+    already_friends: "Vous êtes déjà amis.", invite_already_sent: "Invitation déjà envoyée.",
+    invite_already_received: "Cette personne t'a déjà invité.",
+    not_authenticated: "Connecte-toi pour continuer.", user_not_found: "Cet utilisateur n'existe pas.",
+    invite_not_found: "Invitation introuvable.", not_recipient: "Tu ne peux pas répondre à cette invitation.",
+    invite_not_pending: "Cette invitation n'est plus en attente.", not_sender: "Tu ne peux pas annuler cette invitation.",
+    not_friends: "Vous n'êtes pas amis.", invalid_recipient: "Destinataire invalide.",
+    social_loading: "Chargement de ta communauté...", profile_not_found: "Profil introuvable.",
+    notif_empty: "Aucune notification pour le moment.", invites_pending_count: "invitation(s) en attente",
     post_placeholder: "Partage quelque chose avec la communauté...", post_btn: "Publier",
     msg_empty: "Ajoute des amis dans l'onglet \"Amis\" pour pouvoir leur envoyer un message privé.",
     msg_say_hi: "Dis bonjour 👋", conv_empty: "Aucun message pour l'instant. Dis bonjour !",
@@ -521,7 +537,7 @@ const I18N = {
     today_follow: "+ Suivre", today_following: "✓ Suivi",
     foryou_title: "Pour toi", foryou_greet: "Bonjour", foryou_follows: "Tu suis", foryou_prompt: "et voici ce qui pourrait t'intéresser aujourd'hui.",
     foryou_empty_title: "Découvre tes artistes", foryou_empty_sub: "Suis tes artistes préférés pour un accueil qui te ressemble.",
-    badge_streak: "Série de 7 jours", streak_label: "jours consécutifs", streak_note: "Reviens chaque jour pour faire grimper ta série.",
+    badge_streak: "Série de 7 jours", streak_label: "jours consécutifs", streak_note: "Série quotidienne synchronisée dès que Supabase est configuré (RPC bump_daily_streak).",
     create_title: "Créer", create_story: "Story", create_story_sub: "Photo, vidéo ou texte — visible 24h", create_post: "Publication", create_post_sub: "Partage un message avec la communauté",
     create_locked: "Connecte-toi pour créer du contenu.",
     artists_title: "Nos artistes", artists_sub: "Découvre et suis tes artistes préférés", see_all_artists: "Voir tous les artistes",
@@ -564,6 +580,7 @@ const I18N = {
     profile_logout: "Kobima", profile_fan: "Molingi ya rumba", profile_member: "Moto ya lisanga ya 243Kulture",
     sec_connexion: "Kokota", connexion_note: "Kota mpo na kozwa ba favoris mpe koyamba ba avis oyo ekomisami mpo na yo.",
     btn_google: "Kokoba na Google", btn_meta: "Kokoba na Meta", btn_tiktok: "Kokoba na TikTok",
+    btn_signup: "Sala compte", btn_login: "Kota", auth_create_title: "Sala compte na yo", auth_have_account: "Nazali na compte déjà", auth_connecting: "Connection…", auth_recover_title: "Zwa lisusu compte",
     auth_mock_note: "Ndakisa: bouton ya solo ekosenga OAuth ya plateforme moko na moko (clés API + backend) liboso ya kobimisa.",
     sec_community: "Lisanga na ngai", my_friends: "Balingami na ngai ya 243Kulture", friends_count_sub: "molingami/balingami • Luka ba fans",
     sec_followed: "Ba artiste oyo nalandaka", sec_badges: "Ba badge na ngai",
@@ -581,6 +598,21 @@ const I18N = {
     user_search_hint: "Luka moto na kombo mpo na kobakisa ye lokola molingami.",
     friends_have: "Ozali na", friends_on_app: "molingami/balingami na 243Kulture.",
     add_friend: "+ Bakisa", added_friend: "✓ Molingami",
+    invite_friend: "Benga", invite_sent: "Invitation etindami", invite_received: "Invitation ezwami",
+    invite_accept: "Ndima", invite_decline: "Boya", invite_cancel: "Longola", invite_remove: "Longola",
+    invites_in: "Ba invitation oyo nazwi", invites_out: "Ba invitation oyo natindi",
+    relation_friends: "Bozali balingami", relation_none: "Bozali balingami te",
+    public_profile: "Profil", view_profile: "Tala profil",
+    friend_action_error: "Esalemi malamu te. Meka lisusu.",
+    friend_action_loading: "Ezali kosala...", no_invites: "Invitation moko te sikoyo.",
+    already_friends: "Bozali deja balingami.", invite_already_sent: "Invitation etindami deja.",
+    invite_already_received: "Moto oyo abengi yo deja.",
+    not_authenticated: "Kota liboso.", user_not_found: "Moto oyo azali te.",
+    invite_not_found: "Invitation ezwami te.", not_recipient: "Okoki koyanola invitation oyo te.",
+    invite_not_pending: "Invitation oyo ezali lisusu te.", not_sender: "Okoki kolongola invitation oyo te.",
+    not_friends: "Bozali balingami te.", invalid_recipient: "Moto oyo ezali malamu te.",
+    social_loading: "Lisanga ezali kokota...", profile_not_found: "Profil ezwami te.",
+    notif_empty: "Avis moko te sikoyo.", invites_pending_count: "invitation(s) ezali kozela",
     post_placeholder: "Kabola likambo na lisanga...", post_btn: "Komisa",
     msg_empty: "Bakisa balingami na tab \"Balingami\" mpo okoka kotindela bango message.",
     msg_say_hi: "Loba mbote 👋", conv_empty: "Message moko te sikoyo. Loba mbote !",
@@ -602,7 +634,7 @@ const I18N = {
     today_follow: "+ Landa", today_following: "✓ Elandami",
     foryou_title: "Mpo na yo", foryou_greet: "Mbote", foryou_follows: "Olandi", foryou_prompt: "mpe tala oyo ekoki kosepelisa yo lelo.",
     foryou_empty_title: "Luka ba artiste na yo", foryou_empty_sub: "Landa ba artiste oyo olingaka mpo na ndako oyo ekokani na yo.",
-    badge_streak: "Série ya mikolo 7", streak_label: "mikolo oyo elandani", streak_note: "Yaka mokolo na mokolo mpo na kokolisa molongo na yo.",
+    badge_streak: "Série ya mikolo 7", streak_label: "mikolo oyo elandani", streak_note: "Série ya mokolo na mokolo esynchronisami soki Supabase eza (RPC bump_daily_streak).",
     create_title: "Kela", create_story: "Story", create_story_sub: "Foto, vidéo to makomi — emonanaka ngonga 24", create_post: "Komisa", create_post_sub: "Kabola liloba na lisanga",
     create_locked: "Kota mpo na kokela contenu.",
     artists_title: "Ba artiste na biso", artists_sub: "Luka mpe landa ba artiste oyo olingaka", see_all_artists: "Talá ba artiste nyonso",
@@ -645,6 +677,7 @@ const I18N = {
     profile_logout: "Log out", profile_fan: "Rumba fan", profile_member: "243Kulture community member",
     sec_connexion: "Sign in", connexion_note: "Sign in to find your favorites and get personalized notifications.",
     btn_google: "Continue with Google", btn_meta: "Continue with Meta", btn_tiktok: "Continue with TikTok",
+    btn_signup: "Create an account", btn_login: "Sign in", auth_create_title: "Create your account", auth_have_account: "I already have an account", auth_connecting: "Signing in…", auth_recover_title: "Recover your account",
     auth_mock_note: "Mockup: the real button will require OAuth integration for each platform (API keys + backend) before launch.",
     sec_community: "My community", my_friends: "My 243Kulture friends", friends_count_sub: "friend(s) • Find fans",
     sec_followed: "Followed artists", sec_badges: "My badges",
@@ -662,6 +695,21 @@ const I18N = {
     user_search_hint: "Search someone by name to add them as a friend.",
     friends_have: "You have", friends_on_app: "friend(s) on 243Kulture.",
     add_friend: "+ Add", added_friend: "✓ Friend",
+    invite_friend: "Invite", invite_sent: "Invitation sent", invite_received: "Invitation received",
+    invite_accept: "Accept", invite_decline: "Decline", invite_cancel: "Cancel", invite_remove: "Remove",
+    invites_in: "Incoming invitations", invites_out: "Sent invitations",
+    relation_friends: "You are friends", relation_none: "Not friends yet",
+    public_profile: "Profile", view_profile: "View profile",
+    friend_action_error: "This action could not be completed. Try again.",
+    friend_action_loading: "Please wait...", no_invites: "No invitations right now.",
+    already_friends: "You are already friends.", invite_already_sent: "Invitation already sent.",
+    invite_already_received: "This person already invited you.",
+    not_authenticated: "Sign in to continue.", user_not_found: "This user does not exist.",
+    invite_not_found: "Invitation not found.", not_recipient: "You cannot respond to this invitation.",
+    invite_not_pending: "This invitation is no longer pending.", not_sender: "You cannot cancel this invitation.",
+    not_friends: "You are not friends.", invalid_recipient: "Invalid recipient.",
+    social_loading: "Loading your community...", profile_not_found: "Profile not found.",
+    notif_empty: "No notifications right now.", invites_pending_count: "pending invitation(s)",
     post_placeholder: "Share something with the community...", post_btn: "Post",
     msg_empty: "Add friends in the \"Friends\" tab to send them a private message.",
     msg_say_hi: "Say hi 👋", conv_empty: "No messages yet. Say hi!",
@@ -683,7 +731,7 @@ const I18N = {
     today_follow: "+ Follow", today_following: "✓ Following",
     foryou_title: "For you", foryou_greet: "Hi", foryou_follows: "You follow", foryou_prompt: "and here's what might interest you today.",
     foryou_empty_title: "Discover your artists", foryou_empty_sub: "Follow your favorite artists for a home feed that fits you.",
-    badge_streak: "7-Day Streak", streak_label: "day streak", streak_note: "Come back every day to keep your streak going.",
+    badge_streak: "7-Day Streak", streak_label: "day streak", streak_note: "Daily streak syncs when Supabase is configured (bump_daily_streak RPC).",
     create_title: "Create", create_story: "Story", create_story_sub: "Photo, video or text — visible for 24h", create_post: "Post", create_post_sub: "Share a message with the community",
     create_locked: "Sign in to create content.",
     artists_title: "Our artists", artists_sub: "Discover and follow your favorite artists", see_all_artists: "See all artists",
@@ -726,6 +774,7 @@ const I18N = {
     profile_logout: "Uitloggen", profile_fan: "Rumba-fan", profile_member: "Lid van de 243Kulture-community",
     sec_connexion: "Inloggen", connexion_note: "Log in om je favorieten terug te vinden en gepersonaliseerde meldingen te ontvangen.",
     btn_google: "Doorgaan met Google", btn_meta: "Doorgaan met Meta", btn_tiktok: "Doorgaan met TikTok",
+    btn_signup: "Account aanmaken", btn_login: "Inloggen", auth_create_title: "Maak je account", auth_have_account: "Ik heb al een account", auth_connecting: "Bezig…", auth_recover_title: "Account herstellen",
     auth_mock_note: "Mockup: de echte knop vereist OAuth-integratie per platform (API-sleutels + backend) vóór de lancering.",
     sec_community: "Mijn community", my_friends: "Mijn 243Kulture-vrienden", friends_count_sub: "vriend(en) • Vind fans",
     sec_followed: "Gevolgde artiesten", sec_badges: "Mijn badges",
@@ -743,6 +792,21 @@ const I18N = {
     user_search_hint: "Zoek iemand op naam om als vriend toe te voegen.",
     friends_have: "Je hebt", friends_on_app: "vriend(en) op 243Kulture.",
     add_friend: "+ Toevoegen", added_friend: "✓ Vriend",
+    invite_friend: "Uitnodigen", invite_sent: "Uitnodiging verzonden", invite_received: "Uitnodiging ontvangen",
+    invite_accept: "Accepteren", invite_decline: "Weigeren", invite_cancel: "Annuleren", invite_remove: "Verwijderen",
+    invites_in: "Ontvangen uitnodigingen", invites_out: "Verzonden uitnodigingen",
+    relation_friends: "Jullie zijn vrienden", relation_none: "Nog geen vrienden",
+    public_profile: "Profiel", view_profile: "Bekijk profiel",
+    friend_action_error: "Deze actie is mislukt. Probeer opnieuw.",
+    friend_action_loading: "Even geduld...", no_invites: "Geen uitnodigingen op dit moment.",
+    already_friends: "Jullie zijn al vrienden.", invite_already_sent: "Uitnodiging al verzonden.",
+    invite_already_received: "Deze persoon heeft je al uitgenodigd.",
+    not_authenticated: "Log in om verder te gaan.", user_not_found: "Deze gebruiker bestaat niet.",
+    invite_not_found: "Uitnodiging niet gevonden.", not_recipient: "Je kunt niet op deze uitnodiging reageren.",
+    invite_not_pending: "Deze uitnodiging is niet meer in behandeling.", not_sender: "Je kunt deze uitnodiging niet annuleren.",
+    not_friends: "Jullie zijn geen vrienden.", invalid_recipient: "Ongeldige ontvanger.",
+    social_loading: "Je community wordt geladen...", profile_not_found: "Profiel niet gevonden.",
+    notif_empty: "Geen meldingen op dit moment.", invites_pending_count: "openstaande uitnodiging(en)",
     post_placeholder: "Deel iets met de community...", post_btn: "Plaatsen",
     msg_empty: "Voeg vrienden toe via het tabblad \"Vrienden\" om ze een privébericht te sturen.",
     msg_say_hi: "Zeg hallo 👋", conv_empty: "Nog geen berichten. Zeg hallo!",
@@ -764,7 +828,7 @@ const I18N = {
     today_follow: "+ Volgen", today_following: "✓ Gevolgd",
     foryou_title: "Voor jou", foryou_greet: "Hallo", foryou_follows: "Je volgt", foryou_prompt: "en dit is wat je vandaag zou kunnen interesseren.",
     foryou_empty_title: "Ontdek je artiesten", foryou_empty_sub: "Volg je favoriete artiesten voor een startpagina die bij jou past.",
-    badge_streak: "7-Dagen Streak", streak_label: "dagen op rij", streak_note: "Kom elke dag terug om je reeks op te bouwen.",
+    badge_streak: "7-Dagen Streak", streak_label: "dagen op rij", streak_note: "Dagelijkse streak synchroniseert wanneer Supabase is geconfigureerd (RPC bump_daily_streak).",
     create_title: "Maken", create_story: "Story", create_story_sub: "Foto, video of tekst — 24u zichtbaar", create_post: "Bericht", create_post_sub: "Deel iets met de community",
     create_locked: "Log in om content te maken.",
     artists_title: "Onze artiesten", artists_sub: "Ontdek en volg je favoriete artiesten", see_all_artists: "Alle artiesten bekijken",
@@ -975,7 +1039,7 @@ const NavBar = ({ screen, go, t }) => (
     <div className={`nav-item${screen === "home" ? " active" : ""}`} onClick={() => go("home")}><span className="nav-icon"><Home size={19} strokeWidth={2} /></span>{t.nav_home}</div>
     <div className={`nav-item${screen === "podcasts" || screen === "player" || screen === "articles" || screen === "article" ? " active" : ""}`} onClick={() => go("podcasts")}><span className="nav-icon"><Compass size={19} strokeWidth={2} /></span>{t.nav_discover}</div>
     <div className="nav-item central" onClick={() => go("create")}><div className="nav-fab"><Plus size={22} strokeWidth={2.5} /></div></div>
-    <div className={`nav-item${screen === "amis" || screen === "conversation" ? " active" : ""}`} onClick={() => go("amis")}><span className="nav-icon"><Users size={19} strokeWidth={2} /></span>{t.nav_comm}</div>
+    <div className={`nav-item${screen === "amis" || screen === "conversation" || screen === "userProfile" ? " active" : ""}`} onClick={() => go("amis")}><span className="nav-icon"><Users size={19} strokeWidth={2} /></span>{t.nav_comm}</div>
     <div className={`nav-item${screen === "profil" || screen === "social" ? " active" : ""}`} onClick={() => go("profil")}><span className="nav-icon"><User size={19} strokeWidth={2} /></span>{t.nav_prof}</div>
   </div>
 );
@@ -1027,7 +1091,6 @@ export default function App() {
   const [replyingToComment, setReplyingToComment] = useState(null);
   const [repostedPostIds, setRepostedPostIds] = useState([]);
   const [socialNotifications, setSocialNotifications] = useState([]);
-  const [quizHistory, setQuizHistory] = useState([]);
   const [storyReplyDraft, setStoryReplyDraft] = useState("");
   const [legalTab, setLegalTab] = useState("cgu"); // cgu | confidentialite
   const [followedArtists, setFollowedArtists] = useState([]);
@@ -1035,7 +1098,6 @@ export default function App() {
   const [quizScore, setQuizScore] = useState(0);
   const [quizAnswer, setQuizAnswer] = useState(null); // index selected for current question
   const [quizDone, setQuizDone] = useState(false);
-  const [lastQuizBadgeId, setLastQuizBadgeId] = useState(null);
   const [badges, setBadges] = useState([]);
   const [xp, setXp] = useState(0);
   const [xpToast, setXpToast] = useState(null); // {id, amount}
@@ -1047,12 +1109,20 @@ export default function App() {
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [realFriendProfiles, setRealFriendProfiles] = useState([]); // vrais profils Supabase de mes amis
+  const [incomingInvites, setIncomingInvites] = useState([]);
+  const [outgoingInvites, setOutgoingInvites] = useState([]);
+  const [friendActionBusy, setFriendActionBusy] = useState(null);
+  const [friendActionError, setFriendActionError] = useState("");
+  const [viewedProfile, setViewedProfile] = useState(null);
+  const [viewedProfileLoading, setViewedProfileLoading] = useState(false);
+  const [socialGraphLoading, setSocialGraphLoading] = useState(false);
+  const searchTimerRef = useRef(null);
+  const searchGenRef = useRef(0);
   const [posts, setPosts] = useState([
     { id: "post1", author: "Grace M.", icon: "🎶", time: "Il y a 3h", text: "Quelqu'un va au concert de Fally à Paris ?? On se retrouve là-bas 🎉" },
     { id: "post2", author: "Josué T.", icon: "🕺", time: "Hier", text: "Retour sur Creative Currencies à Kinshasa, une organisation incroyable 🔥" },
   ]);
   const [newPost, setNewPost] = useState("");
-  const [communityMessage, setCommunityMessage] = useState("");
   const [postReactions, setPostReactions] = useState({}); // { postId: emoji }
   const [streakDays, setStreakDays] = useState(0);
   const [myDisplayName, setMyDisplayName] = useState("");
@@ -1075,7 +1145,6 @@ export default function App() {
   const [activeConv, setActiveConv] = useState(null); // friend id
   const [conversations, setConversations] = useState({}); // { friendId: [{from:'me'|'them', text}] }
   const [msgInput, setMsgInput] = useState("");
-  const [messageError, setMessageError] = useState("");
   const [stories, setStories] = useState(() => getStorySeed("fr"));
   const [seenStories, setSeenStories] = useState([]);
   const [activeStoryId, setActiveStoryId] = useState(null);
@@ -1136,14 +1205,13 @@ export default function App() {
     setScreen("player");
   };
 
-  const openNotifs = () => {
+  const openNotifs = async () => {
     setNotifDot(false);
-    setSocialNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-    if (isSupabaseConfigured && user?.id) {
-      supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null)
-        .then(({ error }) => { if (error) console.warn("notifications/read", error.message); });
-    }
     setScreen("notifications");
+    if (isSupabaseConfigured && user?.id) {
+      await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null);
+      setSocialNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    }
   };
 
   const openArticle = (id) => { setArticleId(id); setScreen("article"); };
@@ -1174,18 +1242,16 @@ export default function App() {
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) return;
     (async () => {
-      const [profileRes, favRes, followRes, friendRes, badgeRes, discRes, goingRes, voteRes, debateReactRes, quizHistoryRes, notificationRes] = await Promise.all([
+      const [profileRes, favRes, followRes, friendRes, badgeRes, discRes, goingRes, voteRes, debateReactRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("favorites").select("*").eq("user_id", user.id),
         supabase.from("followed_artists").select("artist_id").eq("user_id", user.id),
-        supabase.from("friendships").select("friend_id").eq("user_id", user.id),
+        supabase.from("friendships").select("user_id, friend_id").or(`user_id.eq.${user.id},friend_id.eq.${user.id}`),
         supabase.from("badges").select("badge_id").eq("user_id", user.id),
         supabase.from("discovered_items").select("item_key").eq("user_id", user.id),
         supabase.from("event_attendance").select("event_id").eq("user_id", user.id),
         supabase.from("debate_votes").select("debate_id, option_index").eq("user_id", user.id),
         supabase.from("debate_reactions").select("debate_id, emoji").eq("user_id", user.id),
-        supabase.from("quiz_results").select("id, score, total, completed_at").eq("user_id", user.id).order("completed_at", { ascending: false }).limit(10),
-        supabase.from("notifications").select("id, type, text, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
       ]);
       if (profileRes.data) {
         const profile = profileRes.data;
@@ -1204,7 +1270,9 @@ export default function App() {
       }
       if (favRes.data) setFavorites(favRes.data.map((f) => ({ id: f.item_id, title: f.title, sub: f.sub, icon: f.icon })));
       if (followRes.data) setFollowedArtists(followRes.data.map((f) => f.artist_id));
-      if (friendRes.data) setFriends(friendRes.data.map((f) => f.friend_id));
+      if (friendRes.data) {
+        setFriends([...new Set(friendRes.data.map((f) => (f.user_id === user.id ? f.friend_id : f.user_id)))]);
+      }
       if (badgeRes.data) setBadges(badgeRes.data.map((b) => b.badge_id));
       if (discRes.data) setDiscoveredItems(discRes.data.map((d) => d.item_key));
       if (goingRes.data) setGoingEvents(goingRes.data.map((g) => g.event_id));
@@ -1214,25 +1282,10 @@ export default function App() {
         setDebateVotes(votes);
       }
       if (debateReactRes.data) {
-        const reactions = {};
-        debateReactRes.data.forEach((r) => { reactions[r.debate_id] = r.emoji; });
-        setDebateReactions(reactions);
+        const reacts = {};
+        debateReactRes.data.forEach((r) => { reacts[r.debate_id] = r.emoji; });
+        setDebateReactions(reacts);
       }
-      if (!quizHistoryRes.error && quizHistoryRes.data) setQuizHistory(quizHistoryRes.data);
-      if (!notificationRes.error && notificationRes.data) {
-        setSocialNotifications(notificationRes.data.map((n) => ({
-          id: n.id,
-          text: n.text,
-          time: new Date(n.created_at).toLocaleString(lang === "fr" ? "fr-BE" : lang, { dateStyle: "short", timeStyle: "short" }),
-          unread: !n.read_at,
-          icon: n.type === "story_reply" ? "💬" : "🔔",
-        })));
-        setNotifDot(notificationRes.data.some((n) => !n.read_at));
-      }
-      // Streak quotidien : calculé et écrit côté serveur (RPC sécurisée),
-      // une fois par session dès que l'utilisateur est identifié.
-      const { data: streakData, error: streakError } = await supabase.rpc("bump_daily_streak");
-      if (!streakError && streakData && streakData[0]) setStreakDays(streakData[0].streak_days);
     })();
   }, [user?.id]);
 
@@ -1278,10 +1331,21 @@ export default function App() {
     })();
   }, [user?.id]);
 
-  // Remarque : le streak est désormais calculé et persisté via la RPC
-  // bump_daily_streak, appelée une fois par session dans l'effet de
-  // chargement du profil ci-dessus (plus de lecture seule redondante ici,
-  // qui risquait sinon d'écraser la valeur du jour avec l'ancienne valeur).
+  // ---------- Streak : bump serveur (RPC) puis lecture de secours ----------
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.id) return;
+    (async () => {
+      const { data, error } = await supabase.rpc("bump_daily_streak");
+      if (!error) {
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row) { setStreakDays(row.streak_days || 0); return; }
+      } else {
+        console.warn("[bump_daily_streak]", error.message);
+      }
+      const { data: fallback } = await supabase.from("profiles").select("streak_days,last_active_date").eq("id", user.id).single();
+      if (fallback) setStreakDays(fallback.streak_days || 0);
+    })();
+  }, [user?.id]);
 
   const toggleOnboardingInterest = (value) => setOnboardingInterests((prev) => prev.includes(value) ? prev.filter((x) => x !== value) : [...prev, value]);
   const toggleOnboardingArtist = (id) => setOnboardingArtists((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -1429,12 +1493,10 @@ export default function App() {
     const id = Date.now();
     setXpToast({ id, amount });
     setTimeout(() => setXpToast((cur) => (cur && cur.id === id ? null : cur)), 1800);
-    // Persistance côté serveur : passe par la RPC sécurisée increment_xp
-    // (les écritures directes sur profiles.xp sont bloquées par un trigger).
-    // Fire-and-forget, comme le reste des synchronisations de cette app.
     if (isSupabaseConfigured && user?.id) {
-      supabase.rpc("increment_xp", { p_amount: amount }).then(({ error }) => {
-        if (error) console.warn("addXp/increment_xp", error.message);
+      supabase.rpc("increment_xp", { p_amount: amount }).then(({ data, error }) => {
+        if (error) console.warn("[increment_xp]", error.message);
+        else if (typeof data === "number") setXp(data);
       });
     }
   };
@@ -1461,58 +1523,225 @@ export default function App() {
       addXp(10);
     }
   };
-  const nextQuiz = async () => {
+  const nextQuiz = () => {
     if (quizIndex + 1 < QUIZ_QUESTIONS.length) {
       setQuizIndex((i) => i + 1);
       setQuizAnswer(null);
     } else {
-      const finalScore = quizScore + (quizAnswer === QUIZ_QUESTIONS[quizIndex].correct ? 1 : 0);
       setQuizDone(true);
-      setQuizScore(finalScore);
       addXp(20);
-      const badgeId = finalScore >= 4 ? "badge1" : finalScore >= 2 ? "badge2" : "badge3";
-      setLastQuizBadgeId(badgeId);
+      const badgeId = quizScore >= 4 ? "badge1" : quizScore >= 2 ? "badge2" : "badge3";
       if (!badges.includes(badgeId)) {
         setBadges((b) => [...b, badgeId]);
         if (isSupabaseConfigured && user?.id) dbInsert("badges", { user_id: user.id, badge_id: badgeId });
       }
       if (isSupabaseConfigured && user?.id) {
-        const { data, error } = await supabase.from("quiz_results").insert({ user_id: user.id, score: finalScore, total: QUIZ_QUESTIONS.length }).select("id, score, total, completed_at").single();
-        if (!error && data) setQuizHistory((prev) => [data, ...prev].slice(0, 10));
-        if (error) console.warn("quiz_results", error.message);
+        dbInsert("quiz_results", { user_id: user.id, score: quizScore, total: QUIZ_QUESTIONS.length });
       }
     }
   };
-  const restartQuiz = () => { setQuizIndex(0); setQuizScore(0); setQuizAnswer(null); setQuizDone(false); setLastQuizBadgeId(null); };
+  const restartQuiz = () => { setQuizIndex(0); setQuizScore(0); setQuizAnswer(null); setQuizDone(false); };
 
-  // ---------- Annuaire d'utilisateurs réel (recherche + amis) ----------
-  // Tant que Supabase n'est pas configuré, l'UI retombe sur COMMUNITY_MEMBERS
-  // (profils de démo) exactement comme avant — rien ne change en mode maquette.
-  const searchUsers = async (query) => {
+  // ---------- Annuaire d'utilisateurs réel (recherche + invitations + profil public) ----------
+  const mapFriendError = (message) => {
+    const raw = String(message || "");
+    const codes = [
+      "already_friends", "invite_already_sent", "invite_already_received",
+      "not_authenticated", "user_not_found", "invite_not_found", "not_recipient",
+      "invite_not_pending", "not_sender", "not_friends", "invalid_recipient",
+    ];
+    const found = codes.find((code) => raw.includes(code));
+    if (found && t[found]) return t[found];
+    return t.friend_action_error;
+  };
+
+  const hydrateProfiles = async (ids) => {
+    const unique = [...new Set((ids || []).filter(Boolean))];
+    if (unique.length === 0) return {};
+    const { data, error } = await supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, onboarding_country, creator_bio").in("id", unique);
+    if (error) { console.warn("[profiles] hydrate", error.message); return {}; }
+    const map = {};
+    (data || []).forEach((p) => { map[p.id] = p; });
+    return map;
+  };
+
+  const loadSocialGraph = async () => {
+    if (!isSupabaseConfigured || !user?.id) { setIncomingInvites([]); setOutgoingInvites([]); setSocialGraphLoading(false); return; }
+    setSocialGraphLoading(true);
+    const [friendRes, inviteRes, notifRes] = await Promise.all([
+      supabase.from("friendships").select("user_id, friend_id").or(`user_id.eq.${user.id},friend_id.eq.${user.id}`),
+      supabase.from("friend_invitations").select("id, sender_id, recipient_id, status, created_at").eq("status", "pending").or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`),
+      supabase.from("notifications").select("id, actor_id, type, text, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
+    ]);
+    if (friendRes.error) console.warn("[friendships] load", friendRes.error.message);
+    else setFriends([...new Set((friendRes.data || []).map((f) => (f.user_id === user.id ? f.friend_id : f.user_id)))]);
+
+    if (inviteRes.error) {
+      console.warn("[friend_invitations] load", inviteRes.error.message);
+    } else {
+      const incoming = (inviteRes.data || []).filter((i) => i.recipient_id === user.id);
+      const outgoing = (inviteRes.data || []).filter((i) => i.sender_id === user.id);
+      const profiles = await hydrateProfiles([
+        ...incoming.map((i) => i.sender_id),
+        ...outgoing.map((i) => i.recipient_id),
+      ]);
+      setIncomingInvites(incoming.map((i) => ({ ...i, profile: profiles[i.sender_id] || {} })));
+      setOutgoingInvites(outgoing.map((i) => ({ ...i, profile: profiles[i.recipient_id] || {} })));
+    }
+
+    if (notifRes.error) console.warn("[notifications] load", notifRes.error.message);
+    else {
+      const rows = notifRes.data || [];
+      setSocialNotifications(rows.map((n) => ({
+        id: n.id,
+        text: n.text,
+        type: n.type,
+        actor_id: n.actor_id,
+        unread: !n.read_at,
+        time: new Date(n.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }),
+        icon: n.type === "friend_invite" || n.type === "friend_accepted" ? "🤝" : "💬",
+      })));
+      setNotifDot(rows.some((n) => !n.read_at));
+    }
+    setSocialGraphLoading(false);
+  };
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.id) return;
+    loadSocialGraph();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const relationWith = (profileId) => {
+    if (!profileId || profileId === user?.id) return "self";
+    if (friends.includes(profileId)) return "friends";
+    const incoming = incomingInvites.find((i) => i.sender_id === profileId);
+    if (incoming) return "incoming";
+    const outgoing = outgoingInvites.find((i) => i.recipient_id === profileId);
+    if (outgoing) return "outgoing";
+    return "none";
+  };
+
+  const runFriendRpc = async (fn, args, busyKey) => {
+    if (!isSupabaseConfigured || !user?.id) return false;
+    setFriendActionBusy(busyKey);
+    setFriendActionError("");
+    const { error } = await supabase.rpc(fn, args);
+    setFriendActionBusy(null);
+    if (error) {
+      console.warn(`[${fn}]`, error.message);
+      setFriendActionError(mapFriendError(error.message));
+      return false;
+    }
+    await loadSocialGraph();
+    if (viewedProfile?.id) {
+      const { data } = await supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, onboarding_country, creator_bio").eq("id", viewedProfile.id).maybeSingle();
+      if (data) setViewedProfile(data);
+    }
+    return true;
+  };
+
+  const searchUsers = (query) => {
     setUserSearchQuery(query);
-    if (!isSupabaseConfigured || !user?.id || query.trim().length < 2) { setUserSearchResults([]); return; }
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!isSupabaseConfigured || !user?.id || query.trim().length < 2) {
+      setUserSearchResults([]);
+      setIsSearchingUsers(false);
+      return;
+    }
     setIsSearchingUsers(true);
-    const { data, error } = await supabase
-      .from("profiles").select("id, display_name, avatar_icon")
-      .ilike("display_name", `%${query.trim()}%`)
-      .neq("id", user.id)
-      .limit(20);
-    setIsSearchingUsers(false);
-    if (error) { console.warn("[profiles] search", error.message); return; }
-    setUserSearchResults(data || []);
+    searchTimerRef.current = setTimeout(async () => {
+      const gen = ++searchGenRef.current;
+      const term = query.trim().replace(/[%_]/g, " ").replace(/\s+/g, " ");
+      const { data, error } = await supabase
+        .from("profiles").select("id, display_name, avatar_icon, creator_status")
+        .ilike("display_name", `%${term}%`)
+        .neq("id", user.id)
+        .limit(20);
+      if (gen !== searchGenRef.current) return;
+      setIsSearchingUsers(false);
+      if (error) { console.warn("[profiles] search", error.message); setFriendActionError(t.friend_action_error); return; }
+      setUserSearchResults(data || []);
+    }, 280);
   };
 
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id || friends.length === 0) { setRealFriendProfiles([]); return; }
-    supabase.from("profiles").select("id, display_name, avatar_icon").in("id", friends)
+    supabase.from("profiles").select("id, display_name, avatar_icon, creator_status").in("id", friends)
       .then(({ data, error }) => { if (!error) setRealFriendProfiles(data || []); });
   }, [user?.id, friends]);
 
   const toggleFriend = (id) => {
+    if (isSupabaseConfigured) return;
     const wasFriend = friends.includes(id);
     setFriends((prev) => (wasFriend ? prev.filter((f) => f !== id) : [...prev, id]));
-    if (wasFriend) dbDelete("friendships", { user_id: user?.id, friend_id: id });
-    else { dbInsert("friendships", { user_id: user?.id, friend_id: id }); addXp(5); }
+    if (!wasFriend) addXp(5);
+  };
+
+  const sendInvite = (id) => runFriendRpc("send_friend_invitation", { p_recipient_id: id }, `send:${id}`);
+  const acceptInvite = (invitationId) => runFriendRpc("accept_friend_invitation", { p_invitation_id: invitationId }, `accept:${invitationId}`);
+  const declineInvite = (invitationId) => runFriendRpc("decline_friend_invitation", { p_invitation_id: invitationId }, `decline:${invitationId}`);
+  const cancelInvite = (invitationId) => runFriendRpc("cancel_friend_invitation", { p_invitation_id: invitationId }, `cancel:${invitationId}`);
+  const removeFriend = (id) => runFriendRpc("remove_friendship", { p_friend_id: id }, `remove:${id}`);
+
+  const openPublicProfile = async (profileId) => {
+    if (!profileId) return;
+    if (profileId === user?.id) { go("profil"); return; }
+    if (!isSupabaseConfigured) {
+      const mock = COMMUNITY_MEMBERS.find((m) => m.id === profileId);
+      if (mock) setViewedProfile({ id: mock.id, display_name: mock.name, avatar_icon: mock.icon, creator_bio: mock.bio });
+      go("userProfile");
+      return;
+    }
+    setViewedProfileLoading(true);
+    setFriendActionError("");
+    go("userProfile");
+    const { data, error } = await supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, onboarding_country, creator_bio").eq("id", profileId).maybeSingle();
+    setViewedProfileLoading(false);
+    if (error || !data) { setFriendActionError(t.friend_action_error); setViewedProfile({ id: profileId }); return; }
+    setViewedProfile(data);
+  };
+
+  const RelationActions = ({ profileId, compact }) => {
+    const rel = relationWith(profileId);
+    const incoming = incomingInvites.find((i) => i.sender_id === profileId);
+    const outgoing = outgoingInvites.find((i) => i.recipient_id === profileId);
+    const busy = friendActionBusy;
+    if (rel === "self") return null;
+    if (!isSupabaseConfigured) {
+      return (
+        <div className={`friend-btn${friends.includes(profileId) ? " added" : " add"}`} onClick={(e) => { e.stopPropagation(); toggleFriend(profileId); }}>
+          {friends.includes(profileId) ? t.added_friend : t.add_friend}
+        </div>
+      );
+    }
+    return (
+      <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
+        {rel === "friends" && (
+          <>
+            {!compact && <div className="friend-btn added">{t.relation_friends}</div>}
+            <div className={`friend-btn danger${busy === `remove:${profileId}` ? " pending" : ""}`} onClick={() => !busy && removeFriend(profileId)}>{busy === `remove:${profileId}` ? t.friend_action_loading : t.invite_remove}</div>
+          </>
+        )}
+        {rel === "outgoing" && (
+          <>
+            <div className="friend-btn pending">{t.invite_sent}</div>
+            {outgoing && <div className="friend-btn danger" onClick={() => !busy && cancelInvite(outgoing.id)}>{busy === `cancel:${outgoing.id}` ? t.friend_action_loading : t.invite_cancel}</div>}
+          </>
+        )}
+        {rel === "incoming" && incoming && (
+          <>
+            <div className="friend-btn add" onClick={() => !busy && acceptInvite(incoming.id)}>{busy === `accept:${incoming.id}` ? t.friend_action_loading : t.invite_accept}</div>
+            <div className="friend-btn danger" onClick={() => !busy && declineInvite(incoming.id)}>{busy === `decline:${incoming.id}` ? t.friend_action_loading : t.invite_decline}</div>
+          </>
+        )}
+        {rel === "none" && (
+          <div className={`friend-btn add${busy === `send:${profileId}` ? " pending" : ""}`} onClick={() => !busy && sendInvite(profileId)}>
+            {busy === `send:${profileId}` ? t.friend_action_loading : t.invite_friend}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const castVote = (debateId, optionIdx) => {
@@ -1521,12 +1750,14 @@ export default function App() {
     dbInsert("debate_votes", { user_id: user?.id, debate_id: debateId, option_index: optionIdx });
     addXp(5);
   };
-  const reactDebate = async (debateId, emoji) => {
+  const reactDebate = (debateId, emoji) => {
     const removing = debateReactions[debateId] === emoji;
     setDebateReactions((prev) => ({ ...prev, [debateId]: removing ? undefined : emoji }));
     if (isSupabaseConfigured && user?.id) {
-      if (removing) await supabase.from("debate_reactions").delete().eq("debate_id", debateId).eq("user_id", user.id);
-      else await supabase.from("debate_reactions").upsert({ debate_id: debateId, user_id: user.id, emoji });
+      if (removing) dbDelete("debate_reactions", { user_id: user.id, debate_id: debateId });
+      else supabase.from("debate_reactions").upsert({ user_id: user.id, debate_id: debateId, emoji }).then(({ error }) => {
+        if (error) console.warn("[debate_reactions]", error.message);
+      });
     }
   };
 
@@ -1545,15 +1776,13 @@ export default function App() {
       if (def.test(ctx)) {
         setBadges((prev) => {
           if (prev.includes(def.id)) return prev;
-          // Persistance : on enregistre le badge nouvellement débloqué.
-          // Fire-and-forget, comme le reste des synchronisations de cette app.
           if (isSupabaseConfigured && user?.id) dbInsert("badges", { user_id: user.id, badge_id: def.id });
           return [...prev, def.id];
         });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [xp, friends.length, followedArtists.length, debateVotes, stories, lang]);
+  }, [xp, friends.length, followedArtists.length, debateVotes, stories, lang, streakDays]);
 
   const handlePostMediaPick = (e) => {
     const file = e.target.files?.[0];
@@ -1566,29 +1795,21 @@ export default function App() {
 
   const addPost = async () => {
     if (!newPost.trim() && !postMedia) return;
-    setCommunityMessage("");
     const localId = "post" + Date.now();
     let mediaUrl = postMediaPreview;
-    let uploadedPostPath = null;
     if (isSupabaseConfigured && user?.id && postMedia) {
       const path = `${user.id}/${Date.now()}-${postMedia.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const { error: uploadError } = await supabase.storage.from("posts").upload(path, postMedia, { upsert: false, contentType: postMedia.type });
-      if (uploadError) { setCommunityMessage("Impossible d'envoyer ce média. Vérifie le stockage Supabase puis réessaie."); return; }
-      uploadedPostPath = path;
-      const { data } = supabase.storage.from("posts").getPublicUrl(path);
-      mediaUrl = data?.publicUrl || null;
+      if (!uploadError) {
+        const { data } = supabase.storage.from("posts").getPublicUrl(path);
+        mediaUrl = data?.publicUrl || mediaUrl;
+      }
     }
     const localPost = { id: localId, author: "Toi", icon: "🎤", time: "À l'instant", text: newPost.trim(), media_url: mediaUrl, media_type: postMediaType };
     setPosts((prev) => [localPost, ...prev]);
     if (isSupabaseConfigured && user?.id) {
       const { data, error } = await supabase.from("posts").insert({ user_id: user.id, text: newPost.trim() || "", media_url: mediaUrl || null, media_type: postMediaType || null }).select("id").single();
-      if (error || !data?.id) {
-        if (uploadedPostPath) await supabase.storage.from("posts").remove([uploadedPostPath]);
-        setPosts((prev) => prev.filter((p) => p.id !== localId));
-        setCommunityMessage("Impossible de publier pour le moment. Réessaie dans un instant.");
-        return;
-      }
-      setPosts((prev) => prev.map((p) => p.id === localId ? { ...p, id: data.id } : p));
+      if (!error && data?.id) setPosts((prev) => prev.map((p) => p.id === localId ? { ...p, id: data.id } : p));
     }
     setNewPost(""); setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null);
     addXp(5);
@@ -1602,28 +1823,14 @@ export default function App() {
     setCommentsByPost((prev) => ({ ...prev, [postId]: [...(prev[postId] || []), local] }));
     setCommentDrafts((prev) => ({ ...prev, [key]: "" }));
     setReplyingToComment(null);
-    if (isSupabaseConfigured) {
-      const { error } = await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, text, parent_id: parentId });
-      if (error) {
-        setCommentsByPost((prev) => ({ ...prev, [postId]: (prev[postId] || []).filter((comment) => comment.id !== local.id) }));
-        setCommentDrafts((prev) => ({ ...prev, [key]: text }));
-        setCommunityMessage("Commentaire non envoyé. Réessaie dans un instant.");
-      }
-    }
+    if (isSupabaseConfigured) await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, text, parent_id: parentId });
   };
 
   const repostPost = async (post) => {
     if (!user?.id || repostedPostIds.includes(post.id)) return;
     setRepostedPostIds((prev) => [post.id, ...prev]);
     setPosts((prev) => [{ ...post, id: `repost-${Date.now()}`, author: "Toi", time: "À l'instant", repost_of: post.id }, ...prev]);
-    if (isSupabaseConfigured) {
-      const { error } = await supabase.from("post_reposts").insert({ post_id: post.id, user_id: user.id });
-      if (error) {
-        setRepostedPostIds((prev) => prev.filter((id) => id !== post.id));
-        setPosts((prev) => prev.filter((item) => !(item.repost_of === post.id && item.author === "Toi")));
-        setCommunityMessage("Republication non enregistrée. Réessaie dans un instant.");
-      }
-    }
+    if (isSupabaseConfigured) await supabase.from("post_reposts").insert({ post_id: post.id, user_id: user.id });
   };
   const reactPost = async (postId, emoji) => {
     const removing = postReactions[postId] === emoji;
@@ -1649,23 +1856,16 @@ export default function App() {
     setSocialNotifications((prev) => [{ id: Date.now(), text: "Réponse à la Story envoyée", time: "À l'instant" }, ...prev]);
   };
 
-  const sendMessage = async () => {
+  const sendMessage = () => {
     if (!msgInput.trim() || !activeConv) return;
     const text = msgInput.trim();
-    const localId = `m-${Date.now()}`;
-    setMessageError("");
     setConversations((prev) => ({
       ...prev,
-      [activeConv]: [...(prev[activeConv] || []), { id: localId, from: "me", text }],
+      [activeConv]: [...(prev[activeConv] || []), { from: "me", text }],
     }));
     setMsgInput("");
     if (isSupabaseConfigured && user?.id) {
-      const { error } = await supabase.from("messages").insert({ sender_id: user.id, recipient_id: activeConv, text });
-      if (error) {
-        setConversations((prev) => ({ ...prev, [activeConv]: (prev[activeConv] || []).filter((message) => message.id !== localId) }));
-        setMsgInput(text);
-        setMessageError("Message non envoyé. Réessaie dans un instant.");
-      }
+      dbInsert("messages", { sender_id: user.id, recipient_id: activeConv, text });
     }
   };
 
@@ -1991,6 +2191,7 @@ export default function App() {
         .notif-item .ntxt { font-size:12px; color:var(--text); font-weight:600; margin-bottom:2px; }
         .notif-item .ntime { font-size:10px; color:var(--muted); }
         .notif-item.unread { border-color:var(--gold); }
+        .notif-item.clickable { cursor:pointer; }
         .hero-carousel { display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory; margin:0 -16px 8px; padding:0 16px 4px;
           -webkit-overflow-scrolling:touch; scrollbar-width:none; }
         .hero-carousel::-webkit-scrollbar { display:none; }
@@ -2196,13 +2397,17 @@ export default function App() {
         .quiz-result .qic { font-size:48px; margin-bottom:12px; display:block; }
         .quiz-result .qscore { font-size:22px; font-weight:800; color:var(--gold); margin-bottom:6px; }
         .quiz-result .qbadge { display:inline-block; background:var(--glass); border:1px solid var(--gold); border-radius:20px; padding:6px 16px; font-size:11.5px; color:var(--gold); font-weight:700; margin-top:10px; }
-        .friend-card { display:flex; align-items:center; gap:10px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; padding:12px; margin-bottom:10px; }
+        .friend-card { display:flex; align-items:center; gap:10px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; padding:12px; margin-bottom:10px; flex-wrap:wrap; }
         .friend-avatar { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--red)); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
         .friend-name { font-size:12.5px; font-weight:700; color:var(--text); }
         .friend-bio { font-size:10.5px; color:var(--muted); }
         .friend-btn { margin-left:auto; font-size:11px; font-weight:700; padding:7px 14px; border-radius:20px; cursor:pointer; flex-shrink:0; }
         .friend-btn.add { background:var(--gold); color:#1a1200; }
         .friend-btn.added { background:var(--glass); border:1px solid var(--glass-border); color:var(--muted); }
+        .friend-btn.danger { background:transparent; border:1px solid rgba(232,90,90,0.45); color:#f3b4b4; }
+        .friend-btn.pending { background:rgba(232,184,75,0.12); border:1px solid rgba(232,184,75,0.35); color:var(--gold); }
+        .friend-actions { margin-left:auto; display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+        .friend-card.clickable { cursor:pointer; }
         .subtab-row { display:flex; gap:8px; margin-bottom:16px; }
         .subtab { flex:1; text-align:center; padding:9px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11.5px; cursor:pointer; color:var(--muted); font-weight:600; }
         .subtab.selected { background:var(--gold); color:#1a1200; border-color:var(--gold); }
@@ -2277,8 +2482,8 @@ export default function App() {
             </div>
             <div className="auth-row" style={{ opacity: legalAccepted ? 1 : 0.45, pointerEvents: legalAccepted ? "auto" : "none" }}>
               <div className="auth-btn google" onClick={() => enterApp("Google")}><span className="auth-ic">G</span> {t.btn_google}</div>
-              <div className="auth-btn" onClick={() => { setAuthMode("signup"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">✉</span> Créer un compte</div>
-              <div className="auth-btn" onClick={() => { setAuthMode("login"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">↪</span> Se connecter</div>
+              <div className="auth-btn" onClick={() => { setAuthMode("signup"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">✉</span> {t.btn_signup}</div>
+              <div className="auth-btn" onClick={() => { setAuthMode("login"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
             </div>
             {!legalAccepted && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{tl.checkWarn}</div>}
             <div className="onb-or">{t.onb_or}</div>
@@ -2291,7 +2496,7 @@ export default function App() {
           <div className="onb-screen">
             <div style={{ alignSelf: "flex-start", cursor: "pointer" }} onClick={() => go("onboarding")}><BackBtn onClick={() => go("onboarding")} label="Retour" /></div>
             <div className="onb-logo-row"><Logo size={110} /></div>
-            <div className="onb-title">{authMode === "signup" ? "Créer ton compte" : authMode === "reset" ? "Récupérer ton compte" : "Se connecter"}</div>
+            <div className="onb-title">{authMode === "signup" ? t.auth_create_title : authMode === "reset" ? t.auth_recover_title : t.btn_login}</div>
             <div className="onb-sub">{authMode === "signup" ? "Rejoins la communauté 243Kulture." : "Retrouve tes favoris, ton XP et ta progression."}</div>
             <div style={{ width: "100%", maxWidth: 360, display: "grid", gap: 10 }}>
               <input className="search-bar" style={{ width: "100%", boxSizing: "border-box", color: "var(--text)" }} type="email" placeholder="Adresse e-mail" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} />
@@ -2300,9 +2505,9 @@ export default function App() {
               {authMode === "reset" ? (
                 <div className="toggle-btn selected" onClick={sendPasswordReset}>{authLoading ? "Envoi…" : "Envoyer le lien"}</div>
               ) : (
-                <div className="toggle-btn selected" onClick={handleEmailAuth}>{authLoading ? "Connexion…" : authMode === "signup" ? "Créer mon compte" : "Se connecter"}</div>
+                <div className="toggle-btn selected" onClick={handleEmailAuth}>{authLoading ? t.auth_connecting : authMode === "signup" ? t.btn_signup : t.btn_login}</div>
               )}
-              <div className="note" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => setAuthMode(authMode === "signup" ? "login" : "signup")}>{authMode === "signup" ? "J'ai déjà un compte" : "Créer un compte"}</div>
+              <div className="note" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => setAuthMode(authMode === "signup" ? "login" : "signup")}>{authMode === "signup" ? t.auth_have_account : t.btn_signup}</div>
               {authMode !== "signup" && <div className="note" style={{ textAlign: "center", cursor: "pointer" }} onClick={() => setAuthMode("reset")}>Mot de passe oublié ?</div>}
             </div>
           </div>
@@ -2856,8 +3061,8 @@ export default function App() {
 
                   <div className="auth-row" style={{ opacity: legalAccepted ? 1 : 0.45, pointerEvents: legalAccepted ? "auto" : "none" }}>
                     <div className="auth-btn google" onClick={() => connectWith("Google")}><span className="auth-ic">G</span> {t.btn_google}</div>
-                    <div className="auth-btn" onClick={() => { setAuthMode("signup"); go("auth"); }}><span className="auth-ic">✉</span> Créer un compte</div>
-                    <div className="auth-btn" onClick={() => { setAuthMode("login"); go("auth"); }}><span className="auth-ic">↪</span> Se connecter</div>
+                    <div className="auth-btn" onClick={() => { setAuthMode("signup"); go("auth"); }}><span className="auth-ic">✉</span> {t.btn_signup}</div>
+                    <div className="auth-btn" onClick={() => { setAuthMode("login"); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
                   </div>
                   {!legalAccepted && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{tl.checkWarn}</div>}
                 </>
@@ -2868,7 +3073,7 @@ export default function App() {
                   <div className="section-label" style={{ marginTop: 0 }}>{t.sec_community}</div>
                   <div className="card" onClick={() => go("amis")}>
                     <div className="thumb">👥</div>
-                    <div><div className="card-title">{t.my_friends}</div><div className="card-sub">{friends.length} {t.friends_count_sub}</div></div>
+                    <div><div className="card-title">{t.my_friends}</div><div className="card-sub">{friends.length} {t.friends_count_sub}{isSupabaseConfigured && incomingInvites.length > 0 ? ` • ${incomingInvites.length} ${t.invites_pending_count}` : ""}</div></div>
                   </div>
                 </>
               )}
@@ -2907,7 +3112,7 @@ export default function App() {
               <div className="section-label">{t.sec_lang}</div>
               <div className="lang-row" style={{ marginBottom: 8, flexWrap: "wrap" }}>
                 {Object.keys(LANG_LABELS).map((code) => (
-                  <div key={code} className={`lang-btn${lang === code ? " selected" : ""}`} style={{ flexBasis: "47%" }} onClick={() => setLang(code)}>
+                  <div key={code} className={`lang-btn${lang === code ? " selected" : ""}`} style={{ flexBasis: "47%" }} onClick={() => { setLang(code); if (isSupabaseConfigured && user?.id) dbUpdateProfile(user.id, { language: code }); }}>
                     {LANG_LABELS[code]}
                   </div>
                 ))}
@@ -3262,17 +3467,7 @@ export default function App() {
                 <div className="quiz-result">
                   <span className="qic">🏆</span>
                   <div className="qscore">{quizScore} / {QUIZ_QUESTIONS.length} {t.quiz_score_of}</div>
-                  <div className="qbadge">🎖️ {t.quiz_result_badge} {badgeLabel(lastQuizBadgeId || badges[badges.length - 1])}</div>
-                  {quizHistory.length > 0 && (
-                    <div className="note" style={{ marginTop: 14, textAlign: "left" }}>
-                      {quizHistory.slice(0, 3).map((result) => (
-                        <div key={result.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0" }}>
-                          <span>{new Date(result.completed_at).toLocaleDateString(lang === "fr" ? "fr-BE" : lang)}</span>
-                          <strong>{result.score}/{result.total}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="qbadge">🎖️ {t.quiz_result_badge} {badgeLabel(badges[badges.length - 1])}</div>
                   <div className="toggle-btn selected" style={{ marginTop: 20 }} onClick={restartQuiz}>{t.quiz_replay}</div>
                 </div>
               )}
@@ -3307,6 +3502,8 @@ export default function App() {
                             <Search size={16} strokeWidth={2} />
                             <input type="text" placeholder={t.user_search_placeholder} value={userSearchQuery} onChange={(e) => searchUsers(e.target.value)} />
                           </div>
+                          {friendActionError && <div className="note" style={{ marginBottom: 10, color: "#f3b4b4" }}>{friendActionError}</div>}
+                          {socialGraphLoading && <div className="note" style={{ marginBottom: 10 }}>{t.social_loading}</div>}
                           {userSearchQuery.trim().length >= 2 && (
                             <>
                               {isSearchingUsers && <div className="note" style={{ marginBottom: 10 }}>{t.searching}</div>}
@@ -3314,26 +3511,45 @@ export default function App() {
                                 <div className="note" style={{ marginBottom: 14 }}>{t.no_users_found}</div>
                               )}
                               {userSearchResults.map((p) => (
-                                <div className="friend-card" key={p.id}>
+                                <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
                                   <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
-                                  <div><div className="friend-name">{p.display_name || t.profile_fan}</div></div>
-                                  <div className={`friend-btn${friends.includes(p.id) ? " added" : " add"}`} onClick={() => toggleFriend(p.id)}>
-                                    {friends.includes(p.id) ? t.added_friend : t.add_friend}
-                                  </div>
+                                  <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.view_profile}</div></div>
+                                  <RelationActions profileId={p.id} compact />
                                 </div>
                               ))}
-                              <div className="section-label">{t.tab_amis}</div>
                             </>
                           )}
-                          <div className="note" style={{ marginBottom: 14 }}>{t.friends_have} {friends.length} {t.friends_on_app}</div>
-                          {realFriendProfiles.map((p) => (
-                            <div className="friend-card" key={p.id}>
-                              <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
-                              <div><div className="friend-name">{p.display_name || t.profile_fan}</div></div>
-                              <div className="friend-btn added" onClick={() => toggleFriend(p.id)}>{t.added_friend}</div>
+
+                          <div className="section-label">{t.invites_in}</div>
+                          {incomingInvites.length === 0 && <div className="note" style={{ marginBottom: 14 }}>{t.no_invites}</div>}
+                          {incomingInvites.map((inv) => (
+                            <div className="friend-card clickable" key={inv.id} onClick={() => openPublicProfile(inv.sender_id)}>
+                              <div className="friend-avatar">{inv.profile?.avatar_icon || "🎶"}</div>
+                              <div><div className="friend-name">{inv.profile?.display_name || t.profile_fan}</div><div className="friend-bio">{t.invite_received}</div></div>
+                              <RelationActions profileId={inv.sender_id} />
                             </div>
                           ))}
-                          {realFriendProfiles.length === 0 && friends.length === 0 && (
+
+                          <div className="section-label">{t.invites_out}</div>
+                          {outgoingInvites.length === 0 && <div className="note" style={{ marginBottom: 14 }}>{t.no_invites}</div>}
+                          {outgoingInvites.map((inv) => (
+                            <div className="friend-card clickable" key={inv.id} onClick={() => openPublicProfile(inv.recipient_id)}>
+                              <div className="friend-avatar">{inv.profile?.avatar_icon || "🎶"}</div>
+                              <div><div className="friend-name">{inv.profile?.display_name || t.profile_fan}</div><div className="friend-bio">{t.invite_sent}</div></div>
+                              <RelationActions profileId={inv.recipient_id} />
+                            </div>
+                          ))}
+
+                          <div className="section-label">{t.tab_amis}</div>
+                          <div className="note" style={{ marginBottom: 14 }}>{t.friends_have} {friends.length} {t.friends_on_app}</div>
+                          {realFriendProfiles.map((p) => (
+                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                              <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                              <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.relation_friends}</div></div>
+                              <RelationActions profileId={p.id} compact />
+                            </div>
+                          ))}
+                          {realFriendProfiles.length === 0 && friends.length === 0 && incomingInvites.length === 0 && outgoingInvites.length === 0 && (
                             <div className="empty-state"><span className="ic">🔍</span><div className="txt">{t.user_search_hint}</div></div>
                           )}
                         </>
@@ -3341,12 +3557,10 @@ export default function App() {
                         <>
                           <div className="note" style={{ marginBottom: 14 }}>{t.friends_have} {friends.length} {t.friends_on_app}</div>
                           {COMMUNITY_MEMBERS.map((m) => (
-                            <div className="friend-card" key={m.id}>
+                            <div className="friend-card clickable" key={m.id} onClick={() => openPublicProfile(m.id)}>
                               <div className="friend-avatar">{m.icon}</div>
                               <div><div className="friend-name">{m.name}</div><div className="friend-bio">{m.bio}</div></div>
-                              <div className={`friend-btn${friends.includes(m.id) ? " added" : " add"}`} onClick={() => toggleFriend(m.id)}>
-                                {friends.includes(m.id) ? t.added_friend : t.add_friend}
-                              </div>
+                              <RelationActions profileId={m.id} compact />
                             </div>
                           ))}
                         </>
@@ -3356,7 +3570,6 @@ export default function App() {
 
                   {communityTab === "feed" && (
                     <>
-                      {communityMessage && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{communityMessage}</div>}
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
                           onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
@@ -3455,7 +3668,6 @@ export default function App() {
                 <div key={i} className={`msg-bubble ${m.from === "me" ? "me" : "them"}`}>{m.text}</div>
               ))}
             </div>
-            {messageError && <div className="note" style={{ color: "var(--red)", padding: "0 14px 8px" }}>{messageError}</div>}
             <div className="msg-input-row">
               <input type="text" placeholder={t.msg_placeholder} value={msgInput}
                 onChange={(e) => setMsgInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} />
@@ -3598,6 +3810,38 @@ export default function App() {
           </>
         )}
 
+        {/* PROFIL PUBLIC D'UN AUTRE UTILISATEUR */}
+        {screen === "userProfile" && (
+          <>
+            <div className="status" />
+            <div className="header">
+              <span className="back" onClick={() => go("amis")} style={{ margin: 0 }}>← </span>
+              <div><div className="htitle">{t.public_profile}</div><div className="hsub">243Kulture</div></div>
+            </div>
+            <div className="content">
+              {viewedProfileLoading && <div className="note">{t.friend_action_loading}</div>}
+              {friendActionError && <div className="note" style={{ marginBottom: 10, color: "#f3b4b4" }}>{friendActionError}</div>}
+              {!viewedProfileLoading && !viewedProfile && (
+                <div className="empty-state"><span className="ic">👤</span><div className="txt">{t.profile_not_found}</div></div>
+              )}
+              {!viewedProfileLoading && viewedProfile && (
+                <>
+                  <div className="profile-avatar">{viewedProfile.avatar_icon || "🎶"}</div>
+                  <div className="profile-name">{viewedProfile.display_name || t.profile_fan}</div>
+                  {viewedProfile.creator_status && viewedProfile.creator_status !== "member" && (
+                    <div className="streak-pill" style={{ margin: "6px auto 10px", display: "flex", width: "fit-content" }}><Star size={13} /> {creatorStatusLabel(viewedProfile.creator_status, lang)}</div>
+                  )}
+                  {viewedProfile.onboarding_country && <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>{viewedProfile.onboarding_country}</div>}
+                  {viewedProfile.creator_bio && <div className="note" style={{ textAlign: "center", marginBottom: 14 }}>{viewedProfile.creator_bio}</div>}
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <RelationActions profileId={viewedProfile.id} />
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+
         {/* NOTIFICATIONS */}
         {screen === "notifications" && (
           <>
@@ -3607,12 +3851,22 @@ export default function App() {
               <div><div className="htitle">{t.notif_title}</div><div className="hsub">243Kulture</div></div>
             </div>
             <div className="content">
-              {[...socialNotifications, ...NOTIFS].map((n, i) => (
-                <div className={`notif-item${n.unread ? " unread" : ""}`} key={n.id || i}>
-                  <div className="nic">{n.icon}</div>
-                  <div><div className="ntxt">{n.text}</div><div className="ntime">{n.time}</div></div>
-                </div>
-              ))}
+              {(() => {
+                const visibleNotifs = isSupabaseConfigured ? socialNotifications : NOTIFS;
+                if (visibleNotifs.length === 0) {
+                  return <div className="empty-state"><span className="ic">🔔</span><div className="txt">{t.notif_empty}</div></div>;
+                }
+                return visibleNotifs.map((n, i) => (
+                  <div
+                    className={`notif-item${n.unread ? " unread" : ""}${n.actor_id ? " clickable" : ""}`}
+                    key={n.id || `mock-${i}`}
+                    onClick={() => n.actor_id && openPublicProfile(n.actor_id)}
+                  >
+                    <div className="nic">{n.icon || "💬"}</div>
+                    <div><div className="ntxt">{n.text}</div><div className="ntime">{n.time}</div></div>
+                  </div>
+                ));
+              })()}
             </div>
           </>
         )}
