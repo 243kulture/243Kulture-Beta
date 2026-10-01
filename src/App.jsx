@@ -480,6 +480,7 @@ const I18N = {
     sec_connexion: "Connexion", connexion_note: "Connecte-toi pour retrouver tes favoris et recevoir des notifications personnalisées.",
     btn_google: "Continuer avec Google", btn_meta: "Continuer avec Meta", btn_tiktok: "Continuer avec TikTok",
     btn_signup: "Créer un compte", btn_login: "Se connecter", auth_create_title: "Créer ton compte", auth_have_account: "J'ai déjà un compte", auth_connecting: "Connexion…", auth_recover_title: "Récupérer ton compte",
+    oauth_redirecting: "Redirection vers Google…", oauth_error: "Connexion Google impossible. Réessaie.", oauth_provider_disabled: "Google n'est pas encore activé sur ce projet. Configure le provider dans Supabase.", oauth_cancelled: "Connexion Google annulée.",
     auth_mock_note: "Maquette : le vrai bouton demandera l'intégration OAuth de chaque plateforme (clés API + backend) avant la mise en prod.",
     sec_community: "Ma communauté", my_friends: "Mes amis 243Kulture", friends_count_sub: "ami(s) • Trouver des fans",
     sec_followed: "Artistes suivis", sec_badges: "Mes badges",
@@ -581,6 +582,7 @@ const I18N = {
     sec_connexion: "Kokota", connexion_note: "Kota mpo na kozwa ba favoris mpe koyamba ba avis oyo ekomisami mpo na yo.",
     btn_google: "Kokoba na Google", btn_meta: "Kokoba na Meta", btn_tiktok: "Kokoba na TikTok",
     btn_signup: "Sala compte", btn_login: "Kota", auth_create_title: "Sala compte na yo", auth_have_account: "Nazali na compte déjà", auth_connecting: "Connection…", auth_recover_title: "Zwa lisusu compte",
+    oauth_redirecting: "Kokende na Google…", oauth_error: "Kokota na Google esuki. Meka lisusu.", oauth_provider_disabled: "Google ezali encore te na projet oyo. Tya provider na Supabase.", oauth_cancelled: "Kokota na Google esili.",
     auth_mock_note: "Ndakisa: bouton ya solo ekosenga OAuth ya plateforme moko na moko (clés API + backend) liboso ya kobimisa.",
     sec_community: "Lisanga na ngai", my_friends: "Balingami na ngai ya 243Kulture", friends_count_sub: "molingami/balingami • Luka ba fans",
     sec_followed: "Ba artiste oyo nalandaka", sec_badges: "Ba badge na ngai",
@@ -678,6 +680,7 @@ const I18N = {
     sec_connexion: "Sign in", connexion_note: "Sign in to find your favorites and get personalized notifications.",
     btn_google: "Continue with Google", btn_meta: "Continue with Meta", btn_tiktok: "Continue with TikTok",
     btn_signup: "Create an account", btn_login: "Sign in", auth_create_title: "Create your account", auth_have_account: "I already have an account", auth_connecting: "Signing in…", auth_recover_title: "Recover your account",
+    oauth_redirecting: "Redirecting to Google…", oauth_error: "Google sign-in failed. Please try again.", oauth_provider_disabled: "Google is not enabled on this project yet. Configure the provider in Supabase.", oauth_cancelled: "Google sign-in was cancelled.",
     auth_mock_note: "Mockup: the real button will require OAuth integration for each platform (API keys + backend) before launch.",
     sec_community: "My community", my_friends: "My 243Kulture friends", friends_count_sub: "friend(s) • Find fans",
     sec_followed: "Followed artists", sec_badges: "My badges",
@@ -775,6 +778,7 @@ const I18N = {
     sec_connexion: "Inloggen", connexion_note: "Log in om je favorieten terug te vinden en gepersonaliseerde meldingen te ontvangen.",
     btn_google: "Doorgaan met Google", btn_meta: "Doorgaan met Meta", btn_tiktok: "Doorgaan met TikTok",
     btn_signup: "Account aanmaken", btn_login: "Inloggen", auth_create_title: "Maak je account", auth_have_account: "Ik heb al een account", auth_connecting: "Bezig…", auth_recover_title: "Account herstellen",
+    oauth_redirecting: "Doorverwijzen naar Google…", oauth_error: "Google-aanmelding mislukt. Probeer opnieuw.", oauth_provider_disabled: "Google is nog niet geactiveerd op dit project. Configureer de provider in Supabase.", oauth_cancelled: "Google-aanmelding geannuleerd.",
     auth_mock_note: "Mockup: de echte knop vereist OAuth-integratie per platform (API-sleutels + backend) vóór de lancering.",
     sec_community: "Mijn community", my_friends: "Mijn 243Kulture-vrienden", friends_count_sub: "vriend(en) • Vind fans",
     sec_followed: "Gevolgde artiesten", sec_badges: "Mijn badges",
@@ -1223,6 +1227,18 @@ export default function App() {
   // avant) pour que l'app reste utilisable/démontrable sans backend.
   useEffect(() => {
     if (!isSupabaseConfigured) return;
+    // Erreurs OAuth renvoyées par Supabase/Google dans l'URL au retour
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+      const oauthErr = params.get("error") || hashParams.get("error");
+      const oauthDesc = params.get("error_description") || hashParams.get("error_description") || "";
+      if (oauthErr) {
+        const cancelled = /access_denied|cancelled|canceled/i.test(`${oauthErr} ${oauthDesc}`);
+        setAuthMessage(cancelled ? I18N[lang]?.oauth_cancelled || "Connexion Google annulée." : (I18N[lang]?.oauth_error || "Connexion Google impossible. Réessaie."));
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch { /* ignore */ }
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser({ provider: session.user.app_metadata?.provider || "Google", id: session.user.id, email: session.user.email });
@@ -1408,10 +1424,41 @@ export default function App() {
   };
 
   const signInWithGoogle = async () => {
-    if (!legalAccepted) return;
+    if (!legalAccepted) { setAuthMessage(tl.checkWarn); return; }
     if (isSupabaseConfigured) {
-      // Vraie connexion — redirige vers Google puis revient sur l'app
-      await supabase.auth.signInWithOAuth({ provider: "google" });
+      setAuthMessage("");
+      setAuthLoading(true);
+      // skipBrowserRedirect : on construit l'URL, on la sonde, puis on navigue
+      // (évite une page JSON brute si le provider Google n'est pas activé)
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+          skipBrowserRedirect: true,
+          queryParams: { prompt: "select_account" },
+        },
+      });
+      if (error || !data?.url) {
+        setAuthLoading(false);
+        const msg = error?.message || t.oauth_error;
+        const disabled = /not enabled|unsupported provider/i.test(msg);
+        setAuthMessage(disabled ? t.oauth_provider_disabled : msg);
+        return;
+      }
+      try {
+        const probe = await fetch(data.url, { method: "GET", redirect: "manual", credentials: "omit" });
+        if (probe.status >= 400) {
+          const body = await probe.json().catch(() => ({}));
+          const msg = body.msg || body.error_description || body.message || t.oauth_error;
+          const disabled = /not enabled|unsupported provider/i.test(msg);
+          setAuthLoading(false);
+          setAuthMessage(disabled ? t.oauth_provider_disabled : msg);
+          return;
+        }
+      } catch {
+        // CORS / réseau : on tente quand même la redirection OAuth
+      }
+      window.location.assign(data.url);
       return;
     }
     // Mode maquette (pas de backend branché)
@@ -2480,12 +2527,13 @@ export default function App() {
                 <a onClick={(e) => { e.stopPropagation(); setLegalTab("confidentialite"); go("legal"); }}>{tl.confLabel}</a>
               )}</div>
             </div>
-            <div className="auth-row" style={{ opacity: legalAccepted ? 1 : 0.45, pointerEvents: legalAccepted ? "auto" : "none" }}>
-              <div className="auth-btn google" onClick={() => enterApp("Google")}><span className="auth-ic">G</span> {t.btn_google}</div>
+            <div className="auth-row" style={{ opacity: legalAccepted && !authLoading ? 1 : 0.45, pointerEvents: legalAccepted && !authLoading ? "auto" : "none" }}>
+              <div className="auth-btn google" onClick={() => enterApp("Google")}><span className="auth-ic">G</span> {authLoading ? t.oauth_redirecting : t.btn_google}</div>
               <div className="auth-btn" onClick={() => { setAuthMode("signup"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">✉</span> {t.btn_signup}</div>
               <div className="auth-btn" onClick={() => { setAuthMode("login"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
             </div>
-            {!legalAccepted && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{tl.checkWarn}</div>}
+            {authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{authMessage}</div>}
+            {!legalAccepted && !authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{tl.checkWarn}</div>}
             <div className="onb-or">{t.onb_or}</div>
             <div className="note" style={{ textAlign: "center" }}>L'accès à 243Kulture nécessite un compte. Connecte-toi ou crée ton compte pour continuer.</div>
           </div>
@@ -3059,12 +3107,13 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="auth-row" style={{ opacity: legalAccepted ? 1 : 0.45, pointerEvents: legalAccepted ? "auto" : "none" }}>
-                    <div className="auth-btn google" onClick={() => connectWith("Google")}><span className="auth-ic">G</span> {t.btn_google}</div>
+                  <div className="auth-row" style={{ opacity: legalAccepted && !authLoading ? 1 : 0.45, pointerEvents: legalAccepted && !authLoading ? "auto" : "none" }}>
+                    <div className="auth-btn google" onClick={() => connectWith("Google")}><span className="auth-ic">G</span> {authLoading ? t.oauth_redirecting : t.btn_google}</div>
                     <div className="auth-btn" onClick={() => { setAuthMode("signup"); go("auth"); }}><span className="auth-ic">✉</span> {t.btn_signup}</div>
                     <div className="auth-btn" onClick={() => { setAuthMode("login"); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
                   </div>
-                  {!legalAccepted && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{tl.checkWarn}</div>}
+                  {authMessage && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{authMessage}</div>}
+                  {!legalAccepted && !authMessage && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{tl.checkWarn}</div>}
                 </>
               )}
 

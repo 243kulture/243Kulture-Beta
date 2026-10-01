@@ -17,8 +17,10 @@ cursor:
 
 Comptes de test (créés via SQL `auth.users` + `auth.identities`, email confirmé ; signup API rate-limité) :
 
-- `liveval.a@243kulture.local` / *(password local test, non inclus dans ce résumé ZIP)*
-- `liveval.b@243kulture.local` / *(password local test, non inclus dans ce résumé ZIP)*
+- `liveval.a@243kulture.local` / *(mot de passe redacted — comptes de validation supprimés après livraison)*
+- `liveval.b@243kulture.local` / *(mot de passe redacted — comptes de validation supprimés après livraison)*
+
+**Cleanup livraison :** les deux comptes ci-dessus ont été **supprimés** du projet `243kulture-Beta`. La matrice OK/FAIL ci-dessous est conservée comme preuve.
 
 ---
 

@@ -109,7 +109,21 @@ projet Supabase) :
 - Vues / impressions créateur : non trackées (limite V1)
 - Certification créateur : `admin_approve_creator()` côté SQL / service_role
 
-Voir aussi `supabase/VALIDATION_P4.md` pour la checklist manuelle amis.
+### Restant / bloqué (live 2026-10-01)
+
+Validation live OK sur amis / messages / notifications / mark-read / XP /
+streak / quiz / badges / débats / storage / **story-reply cross-user** —
+voir rapports store `FINALISATION_COMPLETE_243KULTURE.md` et
+`VALIDATION_LIVE_SUPABASE.md`.
+
+**Encore bloqué / externe :**
+
+1. Google OAuth end-to-end — provider Supabase `google: false` (Client ID/Secret requis)
+2. Meta / TikTok OAuth — hors scope app (config plateforme externe)
+3. Push notifications (web-push) — UI seule
+
+Rapport final : `/cursor/stores/self/docs/FINALISATION_COMPLETE_243KULTURE.md`.
+Checklist amis : `supabase/VALIDATION_P4.md`.
 
 ---
 

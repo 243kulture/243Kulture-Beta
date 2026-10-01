@@ -117,9 +117,13 @@ ZIP exclut : `node_modules/`, `dist/`, `.git/`, `.env*`, logs, caches.
 
 ## I. Restant non testé / hors live
 
-- Google OAuth end-to-end, reset password e-mail
-- Story reply RPC cross-user (accents SQL OK ; path messages OK)
-- OAuth Meta / TikTok (non configurés)
+Détail livraison : `/cursor/stores/self/docs/LIVRAISON_FINALE.md` +
+[AUDIT_FINAL_LIVE_ADDENDUM.md](/cursor/stores/self/docs/AUDIT_FINAL_LIVE_ADDENDUM.md).
+
+- Google OAuth end-to-end (**BLOCKED** : provider Supabase désactivé — Client ID/Secret)
+- Story reply RPC cross-user : **validated live 2026-10-01** (voir store FINALISATION_COMPLETE)
+- OAuth Meta / TikTok (non configurés — external)
+- Push notifications (UI seule, pas de web-push)
 - Déploiement Vercel + redirect URLs
 - PWA install device réel / perf charge
 

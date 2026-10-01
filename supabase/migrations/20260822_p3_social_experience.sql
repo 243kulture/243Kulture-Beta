@@ -118,7 +118,7 @@ begin
   -- Notification créée par trg_notify_message_recipient (évite le doublon).
 end;
 $$;
-revoke all on function public.send_story_reply(uuid, text) from public;
+revoke all on function public.send_story_reply(uuid, text) from public, anon;
 grant execute on function public.send_story_reply(uuid, text) to authenticated;
 
 insert into storage.buckets (id, name, public)
