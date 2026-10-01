@@ -16,6 +16,10 @@ npm run dev
 
 Ouvre l'URL affichée (souvent `http://localhost:5173`).
 
+**Prototype cliquable (sans Supabase) :** coche les CGU → **Continuer sans compte**,
+ou ouvre directement `http://localhost:5173/?demo=fast#home` (hash d’écran :
+`#podcasts`, `#amis`, `#profil`, `#quiz`…).
+
 Build de production :
 
 ```bash

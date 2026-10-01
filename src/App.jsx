@@ -1188,7 +1188,30 @@ export default function App() {
     return t[id] || id; // badge1/badge2/badge3 (quiz)
   };
 
-  const go = (id) => setScreen(id);
+  const go = (id) => {
+    setScreen(id);
+    // Deep-link prototype : #home, #amis, #quiz… pour cliquer / partager un écran
+    if (typeof window !== "undefined" && window.history?.replaceState) {
+      const next = `#${id}`;
+      if (window.location.hash !== next) window.history.replaceState(null, "", next);
+    }
+  };
+
+  // Entrée prototype : ?demo=1 (parcours complet) ou ?demo=fast#amis (accès direct)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const demo = params.get("demo");
+    if (!demo) return;
+    const hashScreen = (window.location.hash || "").replace(/^#/, "") || "home";
+    setLegalAccepted(true);
+    // Délai 0 : laisse le premier render monter les states avant go()
+    const t = setTimeout(() => {
+      enterPrototypeDemo({ force: true, fast: demo === "fast", screen: hashScreen });
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleFav = (id, title, sub, icon) => {
     const wasFav = favorites.some((f) => f.id === id);
@@ -1478,6 +1501,29 @@ export default function App() {
     go("auth");
   };
   const skipAuth = () => go("auth");
+
+  // Mode maquette / prototype cliquable : entre sans OAuth ni Supabase.
+  // Pré-remplit un profil démo pour enchaîner onboarding → home → nav.
+  const enterPrototypeDemo = (opts = {}) => {
+    if (!legalAccepted && !opts.force) {
+      setAuthMessage(tl.checkWarn);
+      return;
+    }
+    setAuthMessage("");
+    setUser({ provider: "Demo", id: "demo-prototype", email: "prototype@243kulture.app" });
+    setMyDisplayName("Fan 243");
+    setOnboardingInterests(["Musique", "Histoire", "Communauté"]);
+    setOnboardingArtists(["ar1", "ar2"]);
+    setOnboardingCountry("CD");
+    setFollowedArtists((prev) => Array.from(new Set([...prev, "ar1", "ar2"])));
+    setCreatorOnboardingChoice("member");
+    if (opts.fast) {
+      go(opts.screen || "home");
+      return;
+    }
+    go("onboardingChoice");
+  };
+
   const logout = () => {
     if (isSupabaseConfigured) supabase.auth.signOut();
     setUser(null);
@@ -2512,6 +2558,23 @@ export default function App() {
 
       <div className="k-app">
       <div className="phone">
+        {!isSupabaseConfigured && (
+          <div
+            style={{
+              flexShrink: 0,
+              background: "linear-gradient(90deg, rgba(30,95,168,.85), rgba(46,139,87,.75))",
+              color: "#fff",
+              fontSize: 10.5,
+              fontWeight: 600,
+              letterSpacing: 0.2,
+              textAlign: "center",
+              padding: "6px 10px",
+              borderBottom: "1px solid var(--glass-border)",
+            }}
+          >
+            Prototype 243Kulture — maquette locale (sans Supabase)
+          </div>
+        )}
         {xpToast && <div className="xp-toast">✨ +{xpToast.amount} {t.xp_pts}</div>}
 
         {/* ONBOARDING — connexion / inscription */}
@@ -2533,9 +2596,27 @@ export default function App() {
               <div className="auth-btn" onClick={() => { setAuthMode("login"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
             </div>
             {authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{authMessage}</div>}
-            {!legalAccepted && !authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{tl.checkWarn}</div>}
+            {/* Ne pas afficher l'avertissement RGPD en rouge en permanence — seulement après une tentative */}
             <div className="onb-or">{t.onb_or}</div>
-            <div className="note" style={{ textAlign: "center" }}>L'accès à 243Kulture nécessite un compte. Connecte-toi ou crée ton compte pour continuer.</div>
+            {!isSupabaseConfigured ? (
+              <>
+                <div
+                  className="onb-skip"
+                  style={{ opacity: legalAccepted ? 1 : 0.45, pointerEvents: legalAccepted ? "auto" : "none" }}
+                  onClick={() => enterPrototypeDemo()}
+                >
+                  {t.onb_skip}
+                </div>
+                <div className="note" style={{ textAlign: "center", marginTop: 8 }}>
+                  Mode maquette : parcours cliquable sans backend. Ajoute un `.env` Supabase pour l’auth réelle.
+                </div>
+                <div className="note" style={{ textAlign: "center", marginTop: 4, color: "var(--gold)" }}>
+                  Astuce démo : <code style={{ fontSize: 10 }}>?demo=fast#home</code>
+                </div>
+              </>
+            ) : (
+              <div className="note" style={{ textAlign: "center" }}>L'accès à 243Kulture nécessite un compte. Connecte-toi ou crée ton compte pour continuer.</div>
+            )}
           </div>
         )}
 
