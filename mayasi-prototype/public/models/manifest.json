@@ -1,0 +1,74 @@
+{
+  "clips": [
+    {
+      "id": "All_Night_Dance",
+      "file": "Meshy_All_Night_Dance.glb",
+      "url": "/models/Meshy_All_Night_Dance.glb"
+    },
+    {
+      "id": "Attack",
+      "file": "Meshy_Attack.glb",
+      "url": "/models/Meshy_Attack.glb"
+    },
+    {
+      "id": "BeHit_FlyUp",
+      "file": "Meshy_BeHit_FlyUp.glb",
+      "url": "/models/Meshy_BeHit_FlyUp.glb"
+    },
+    {
+      "id": "Boom_Dance",
+      "file": "Meshy_Boom_Dance.glb",
+      "url": "/models/Meshy_Boom_Dance.glb"
+    },
+    {
+      "id": "Boxing_Practice",
+      "file": "Meshy_Boxing_Practice.glb",
+      "url": "/models/Meshy_Boxing_Practice.glb"
+    },
+    {
+      "id": "Casual_Walk",
+      "file": "Meshy_Casual_Walk.glb",
+      "url": "/models/Meshy_Casual_Walk.glb"
+    },
+    {
+      "id": "Dead",
+      "file": "Meshy_Dead.glb",
+      "url": "/models/Meshy_Dead.glb"
+    },
+    {
+      "id": "RunFast",
+      "file": "Meshy_RunFast.glb",
+      "url": "/models/Meshy_RunFast.glb"
+    },
+    {
+      "id": "Running",
+      "file": "Meshy_Running.glb",
+      "url": "/models/Meshy_Running.glb"
+    },
+    {
+      "id": "Skill_01",
+      "file": "Meshy_Skill_01.glb",
+      "url": "/models/Meshy_Skill_01.glb"
+    },
+    {
+      "id": "Skill_03",
+      "file": "Meshy_Skill_03.glb",
+      "url": "/models/Meshy_Skill_03.glb"
+    },
+    {
+      "id": "Triple_Combo_Attack",
+      "file": "Meshy_Triple_Combo_Attack.glb",
+      "url": "/models/Meshy_Triple_Combo_Attack.glb"
+    },
+    {
+      "id": "Unsteady_Walk",
+      "file": "Meshy_Unsteady_Walk.glb",
+      "url": "/models/Meshy_Unsteady_Walk.glb"
+    },
+    {
+      "id": "You_Groove",
+      "file": "Meshy_You_Groove.glb",
+      "url": "/models/Meshy_You_Groove.glb"
+    }
+  ]
+}
