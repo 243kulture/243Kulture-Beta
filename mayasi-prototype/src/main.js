@@ -88,8 +88,22 @@ function markActive(action) {
   }
 }
 
+async function probeUrl(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' })
+    if (res.ok) return true
+  } catch {}
+  try {
+    const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } })
+    return res.ok || res.status === 206
+  } catch {
+    return false
+  }
+}
+
 async function resolveFirst(urls, loader) {
   for (const url of urls) {
+    if (!(await probeUrl(url))) continue
     try {
       const gltf = await loader.loadAsync(url)
       return { url, gltf }
@@ -184,11 +198,10 @@ async function tryLoadMayasiSet(loader, characterRoot) {
   }
 
   // Prefer animated GLBs (Meshy withSkin). Mayasi base optional for idle.
-  // resolveFirst already loaded once — load again for the scene graph (cheap vs complexity).
   for (const key of [...animKeys, 'mayasi']) {
-    if (!resolved[key]) continue
-    const gltf = await loadGltf(loader, resolved[key])
-    const pack = prepareScene(gltf, resolved[key])
+    const hit = resolved[key]
+    if (!hit) continue
+    const pack = prepareScene(hit.gltf, hit.url)
     pack.root.visible = false
     characterRoot.add(pack.root)
     state.packs.set(key, pack)
@@ -271,12 +284,14 @@ async function boot() {
     alpha: true,
     powerPreference: 'high-performance',
   })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
   renderer.setSize(window.innerWidth, window.innerHeight, false)
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.05
-  renderer.shadowMap.enabled = true
+  // Soften cost on software GL (cloud VMs)
+  const isSoftGL = /SwiftShader|llvmpipe|software/i.test(renderer.getContext()?.getParameter?.(renderer.getContext().RENDERER) || '')
+  renderer.shadowMap.enabled = !isSoftGL
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
   const scene = new THREE.Scene()
