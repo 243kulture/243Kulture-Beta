@@ -4,55 +4,80 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 
-const ACTIONS = ['arise', 'attack', 'dead', 'idle']
+const GROUPS = [
+  {
+    id: 'locomotion',
+    label: 'Locomotion',
+    clips: ['Casual_Walk', 'Unsteady_Walk', 'Running', 'RunFast'],
+  },
+  {
+    id: 'combat',
+    label: 'Combat',
+    clips: ['Attack', 'Triple_Combo_Attack', 'Boxing_Practice', 'BeHit_FlyUp', 'Dead'],
+  },
+  {
+    id: 'dance',
+    label: 'Dance',
+    clips: ['Boom_Dance', 'You_Groove', 'All_Night_Dance'],
+  },
+  {
+    id: 'skills',
+    label: 'Skills',
+    clips: ['Skill_01', 'Skill_03'],
+  },
+]
 
-const ASSET_CANDIDATES = {
-  mayasi: [
-    '/models/Mayasi.glb',
-    '/models/Mayasi_d3ee.glb',
-  ],
-  arise: [
-    '/models/Meshy_AI_Urban_Ease_biped_Animation_Arise_withSkin.glb',
-    '/models/Meshy_AI_Urban_Ease_biped_Animation_Arise_withSkin_fff7.glb',
-    '/models/Arise.glb',
-  ],
-  attack: [
-    '/models/Meshy_AI_Urban_Ease_biped_Animation_Attack_withSkin.glb',
-    '/models/Meshy_AI_Urban_Ease_biped_Animation_Attack_withSkin_c2d7.glb',
-    '/models/Attack.glb',
-  ],
-  dead: [
-    '/models/Meshy_AI_Urban_Ease_biped_Animation_Dead_withSkin.glb',
-    '/models/Meshy_AI_Urban_Ease_biped_Animation_Dead_withSkin_e683.glb',
-    '/models/Dead.glb',
-  ],
-}
+const LOOPING = new Set([
+  'Casual_Walk',
+  'Unsteady_Walk',
+  'Running',
+  'RunFast',
+  'Boom_Dance',
+  'You_Groove',
+  'All_Night_Dance',
+  'Boxing_Practice',
+])
 
-const FALLBACK_URL = '/fallback/RobotExpressive.glb'
-const FALLBACK_CLIPS = {
-  arise: ['Jump', 'Standing', 'Idle'],
-  attack: ['Punch', 'ThumbsUp', 'Wave'],
-  dead: ['Death', 'Sitting'],
-  idle: ['Idle', 'Standing', 'Walking'],
+const LABELS = {
+  Casual_Walk: 'Marche',
+  Unsteady_Walk: 'Pas hésitant',
+  Running: 'Course',
+  RunFast: 'Sprint',
+  Attack: 'Attaque',
+  Triple_Combo_Attack: 'Combo ×3',
+  Boxing_Practice: 'Boxe',
+  BeHit_FlyUp: 'Touché',
+  Dead: 'KO',
+  Boom_Dance: 'Boom Dance',
+  You_Groove: 'Groove',
+  All_Night_Dance: 'All Night',
+  Skill_01: 'Skill 01',
+  Skill_03: 'Skill 03',
 }
 
 const els = {
   canvas: document.getElementById('stage'),
   status: document.getElementById('status'),
   banner: document.getElementById('banner'),
+  groups: document.getElementById('groups'),
   clipName: document.getElementById('clip-name'),
-  sourceName: document.getElementById('source-name'),
+  groupName: document.getElementById('group-name'),
   fps: document.getElementById('fps'),
-  buttons: [...document.querySelectorAll('.action')],
 }
 
 const state = {
-  mode: 'none', // 'meshy-set' | 'fallback'
-  packs: new Map(), // action -> { scene, mixer, clips, root }
-  active: null,
+  catalog: new Map(), // id -> { id, url }
+  packs: new Map(),
+  loading: new Set(),
+  activeId: null,
   clock: new THREE.Clock(),
   frames: 0,
   lastFps: performance.now(),
+  groupOf: new Map(),
+  characterRoot: null,
+  camera: null,
+  controls: null,
+  framed: false,
 }
 
 function setStatus(text, kind = '') {
@@ -70,60 +95,55 @@ function setBanner(text) {
   els.banner.classList.remove('hidden')
 }
 
-function setButtonsEnabled(enabled) {
-  for (const btn of els.buttons) {
-    const action = btn.dataset.action
-    const available =
-      enabled &&
-      ((state.mode === 'meshy-set' && state.packs.has(action)) ||
-        (state.mode === 'fallback' && action in FALLBACK_CLIPS) ||
-        (state.mode === 'meshy-set' && action === 'idle' && state.packs.has('mayasi')))
-    btn.disabled = !available
-  }
+function pretty(id) {
+  return LABELS[id] || id.replaceAll('_', ' ')
 }
 
-function markActive(action) {
-  for (const btn of els.buttons) {
-    btn.classList.toggle('active', btn.dataset.action === action)
-  }
-}
-
-async function probeUrl(url) {
-  try {
-    const res = await fetch(url, { method: 'HEAD' })
-    if (res.ok) return true
-  } catch {}
-  try {
-    const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } })
-    return res.ok || res.status === 206
-  } catch {
-    return false
-  }
-}
-
-async function resolveFirst(urls, loader) {
-  for (const url of urls) {
-    if (!(await probeUrl(url))) continue
-    try {
-      const gltf = await loader.loadAsync(url)
-      return { url, gltf }
-    } catch {
-      // try next candidate
+function buildUI(availableIds) {
+  els.groups.innerHTML = ''
+  for (const group of GROUPS) {
+    const ids = group.clips.filter((id) => availableIds.includes(id))
+    if (!ids.length) continue
+    const block = document.createElement('div')
+    block.className = 'group'
+    const title = document.createElement('p')
+    title.className = 'group-title'
+    title.textContent = group.label
+    block.appendChild(title)
+    const grid = document.createElement('div')
+    grid.className = 'actions'
+    grid.setAttribute('role', 'group')
+    grid.setAttribute('aria-label', group.label)
+    for (const id of ids) {
+      state.groupOf.set(id, group.label)
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'action'
+      btn.dataset.action = id
+      btn.innerHTML = `<span class="action-label">${pretty(id)}</span><span class="action-hint">${id}</span>`
+      btn.addEventListener('click', () => playAction(id))
+      grid.appendChild(btn)
     }
+    block.appendChild(grid)
+    els.groups.appendChild(block)
   }
-  return null
 }
 
-function fitCameraToObject(camera, object, controls, offset = 1.35) {
+function markActive(id) {
+  for (const btn of document.querySelectorAll('.action')) {
+    btn.classList.toggle('active', btn.dataset.action === id)
+  }
+}
+
+function fitCameraToObject(camera, object, controls, offset = 1.45) {
   const box = new THREE.Box3().setFromObject(object)
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
   const maxDim = Math.max(size.x, size.y, size.z) || 1
   const fov = camera.fov * (Math.PI / 180)
   let distance = (maxDim / (2 * Math.tan(fov / 2))) * offset
-  distance = Math.max(distance, maxDim * 1.2)
-
-  camera.position.set(center.x + distance * 0.35, center.y + distance * 0.2, center.z + distance)
+  distance = Math.max(distance, maxDim * 1.25)
+  camera.position.set(center.x + distance * 0.4, center.y + distance * 0.18, center.z + distance)
   camera.near = Math.max(0.01, distance / 100)
   camera.far = distance * 100
   camera.updateProjectionMatrix()
@@ -131,150 +151,100 @@ function fitCameraToObject(camera, object, controls, offset = 1.35) {
   controls.update()
 }
 
-function prepareScene(gltf, name) {
+function prepareScene(gltf, url) {
   const root = gltf.scene
-  root.name = name
   root.traverse((obj) => {
     if (obj.isMesh) {
       obj.castShadow = true
       obj.receiveShadow = true
-      if (obj.material) {
-        obj.material.envMapIntensity = 0.9
-      }
+      if (obj.material) obj.material.envMapIntensity = 0.95
     }
   })
-  const mixer = new THREE.AnimationMixer(root)
+  const box = new THREE.Box3().setFromObject(root)
+  root.position.y -= box.min.y
   return {
     root,
-    mixer,
+    mixer: new THREE.AnimationMixer(root),
     clips: gltf.animations || [],
-    url: name,
+    url,
   }
 }
 
-function hideAllPacks() {
+function hideAll() {
   for (const pack of state.packs.values()) {
     pack.root.visible = false
     pack.mixer.stopAllAction()
   }
 }
 
-function playClipOnPack(pack, preferredNames = [], loop = THREE.LoopOnce) {
-  if (!pack.clips.length) {
-    pack.root.visible = true
-    return { clipName: '(pose)', duration: 0 }
+const loader = new GLTFLoader()
+
+async function ensurePack(id) {
+  if (state.packs.has(id)) return state.packs.get(id)
+  if (state.loading.has(id)) {
+    while (state.loading.has(id)) await new Promise((r) => setTimeout(r, 50))
+    return state.packs.get(id)
   }
-
-  let clip =
-    preferredNames
-      .map((n) => pack.clips.find((c) => c.name.toLowerCase() === n.toLowerCase()))
-      .find(Boolean) || pack.clips[0]
-
-  pack.mixer.stopAllAction()
-  const action = pack.mixer.clipAction(clip)
-  action.reset()
-  action.setLoop(loop, Infinity)
-  action.clampWhenFinished = loop === THREE.LoopOnce
-  action.fadeIn(0.15)
-  action.play()
-  pack.root.visible = true
-  return { clipName: clip.name, duration: clip.duration }
-}
-
-async function loadGltf(loader, url) {
-  return loader.loadAsync(url)
-}
-
-async function tryLoadMayasiSet(loader, characterRoot) {
-  const resolved = {}
-  for (const [key, urls] of Object.entries(ASSET_CANDIDATES)) {
-    resolved[key] = await resolveFirst(urls, loader)
-  }
-
-  const animKeys = ['arise', 'attack', 'dead']
-  const foundAnims = animKeys.filter((k) => resolved[k])
-  if (foundAnims.length === 0) {
-    return false
-  }
-
-  // Prefer animated GLBs (Meshy withSkin). Mayasi base optional for idle.
-  for (const key of [...animKeys, 'mayasi']) {
-    const hit = resolved[key]
-    if (!hit) continue
-    const pack = prepareScene(hit.gltf, hit.url)
+  const entry = state.catalog.get(id)
+  if (!entry) throw new Error(`Clip inconnu: ${id}`)
+  state.loading.add(id)
+  try {
+    const gltf = await loader.loadAsync(entry.url)
+    const pack = prepareScene(gltf, entry.url)
     pack.root.visible = false
-    characterRoot.add(pack.root)
-    state.packs.set(key, pack)
+    state.characterRoot.add(pack.root)
+    state.packs.set(id, pack)
+    return pack
+  } finally {
+    state.loading.delete(id)
   }
+}
 
-  // If idle has no dedicated clip, use Mayasi static or first frame of arise
-  if (!state.packs.has('idle')) {
-    if (state.packs.has('mayasi')) {
-      state.packs.set('idle', state.packs.get('mayasi'))
-    } else if (state.packs.has('arise')) {
-      state.packs.set('idle', state.packs.get('arise'))
+async function playAction(id) {
+  markActive(id)
+  setStatus(`Chargement · ${pretty(id)}`)
+  try {
+    const pack = await ensurePack(id)
+    hideAll()
+    pack.root.visible = true
+
+    if (!state.framed) {
+      fitCameraToObject(state.camera, pack.root, state.controls)
+      state.framed = true
     }
-  }
 
-  state.mode = 'meshy-set'
-  els.sourceName.textContent = 'GLB Mayasi / Meshy'
-  setBanner('')
-  return true
+    if (!pack.clips.length) {
+      state.activeId = id
+      els.clipName.textContent = '(pose)'
+      els.groupName.textContent = state.groupOf.get(id) || '—'
+      setStatus(`Pose · ${pretty(id)}`, 'ready')
+      return
+    }
+
+    const clip = pack.clips[0]
+    const action = pack.mixer.clipAction(clip)
+    action.reset()
+    const loop = LOOPING.has(id) ? THREE.LoopRepeat : THREE.LoopOnce
+    action.setLoop(loop, Infinity)
+    action.clampWhenFinished = loop === THREE.LoopOnce
+    action.fadeIn(0.12)
+    action.play()
+
+    state.activeId = id
+    els.clipName.textContent = clip.name || id
+    els.groupName.textContent = state.groupOf.get(id) || '—'
+    setStatus(`Lecture · ${pretty(id)}`, 'ready')
+  } catch (err) {
+    console.error(err)
+    setStatus(`Erreur · ${pretty(id)}`, 'error')
+  }
 }
 
-async function loadFallback(loader, characterRoot) {
-  const gltf = await loadGltf(loader, FALLBACK_URL)
-  const pack = prepareScene(gltf, FALLBACK_URL)
-  characterRoot.add(pack.root)
-  for (const action of ACTIONS) {
-    state.packs.set(action, pack)
-  }
-  state.mode = 'fallback'
-  els.sourceName.textContent = 'Stand-in (RobotExpressive)'
-  setBanner(
-    'GLB Mayasi / Meshy introuvables sur ce worker. Démo temporaire avec un personnage stand-in. Place Mayasi.glb + Arise/Attack/Dead dans mayasi-prototype/public/models/ puis recharge.'
-  )
-  return true
-}
-
-function playAction(actionName) {
-  if (!state.packs.size) return
-
-  hideAllPacks()
-
-  if (state.mode === 'fallback') {
-    const pack = state.packs.get(actionName)
-    const preferred = FALLBACK_CLIPS[actionName] || []
-    const loop = actionName === 'idle' ? THREE.LoopRepeat : THREE.LoopOnce
-    const { clipName } = playClipOnPack(pack, preferred, loop)
-    state.active = actionName
-    markActive(actionName)
-    els.clipName.textContent = clipName
-    setStatus(`Lecture · ${actionName}`, 'ready')
-    return
-  }
-
-  // meshy-set: each anim GLB is its own skinned character
-  let pack = state.packs.get(actionName)
-  let preferred = []
-  let loop = THREE.LoopOnce
-
-  if (actionName === 'idle') {
-    pack = state.packs.get('idle') || state.packs.get('mayasi') || state.packs.get('arise')
-    loop = pack?.clips?.length ? THREE.LoopRepeat : THREE.LoopOnce
-  }
-
-  if (!pack) {
-    setStatus(`Action indisponible · ${actionName}`, 'error')
-    return
-  }
-
-  const { clipName } = playClipOnPack(pack, preferred, loop)
-  // Center camera lightly on first play
-  state.active = actionName
-  markActive(actionName)
-  els.clipName.textContent = clipName || actionName
-  setStatus(`Lecture · ${actionName}`, 'ready')
+async function loadManifest() {
+  const res = await fetch('/models/manifest.json', { cache: 'no-store' })
+  if (!res.ok) throw new Error('manifest.json introuvable — npm run sync-assets')
+  const data = await res.json()
+  return data.clips || []
 }
 
 async function boot() {
@@ -289,8 +259,9 @@ async function boot() {
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.05
-  // Soften cost on software GL (cloud VMs)
-  const isSoftGL = /SwiftShader|llvmpipe|software/i.test(renderer.getContext()?.getParameter?.(renderer.getContext().RENDERER) || '')
+
+  const glInfo = renderer.getContext()?.getParameter?.(renderer.getContext().RENDERER) || ''
+  const isSoftGL = /SwiftShader|llvmpipe|software/i.test(glInfo)
   renderer.shadowMap.enabled = !isSoftGL
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
@@ -300,27 +271,24 @@ async function boot() {
 
   const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 100)
   camera.position.set(1.6, 1.4, 3.2)
+  state.camera = camera
 
   const controls = new OrbitControls(camera, els.canvas)
   controls.enableDamping = true
   controls.dampingFactor = 0.06
-  controls.minDistance = 1.2
-  controls.maxDistance = 10
+  controls.minDistance = 1.1
+  controls.maxDistance = 12
   controls.maxPolarAngle = Math.PI * 0.49
   controls.target.set(0, 1, 0)
+  state.controls = controls
 
   const pmrem = new THREE.PMREMGenerator(renderer)
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
 
-  const hemi = new THREE.HemisphereLight(0xdff7ea, 0x1a2a22, 1.1)
-  scene.add(hemi)
-  const key = new THREE.DirectionalLight(0xfff2d1, 2.1)
+  scene.add(new THREE.HemisphereLight(0xdff7ea, 0x1a2a22, 1.15))
+  const key = new THREE.DirectionalLight(0xfff2d1, 2.15)
   key.position.set(3.5, 6, 2.5)
-  key.castShadow = true
-  key.shadow.mapSize.set(2048, 2048)
-  key.shadow.camera.near = 0.5
-  key.shadow.camera.far = 24
-  key.shadow.bias = -0.0002
+  key.castShadow = !isSoftGL
   scene.add(key)
   const rim = new THREE.DirectionalLight(0x3ecf8e, 0.85)
   rim.position.set(-4, 2.5, -3)
@@ -328,11 +296,7 @@ async function boot() {
 
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(6.5, 64),
-    new THREE.MeshStandardMaterial({
-      color: 0x14241c,
-      roughness: 0.92,
-      metalness: 0.05,
-    })
+    new THREE.MeshStandardMaterial({ color: 0x14241c, roughness: 0.92, metalness: 0.05 })
   )
   ground.rotation.x = -Math.PI / 2
   ground.receiveShadow = true
@@ -340,79 +304,85 @@ async function boot() {
 
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(1.05, 1.12, 64),
-    new THREE.MeshBasicMaterial({ color: 0xd4a017, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({
+      color: 0xd4a017,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+    })
   )
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.01
   scene.add(ring)
 
-  const characterRoot = new THREE.Group()
-  scene.add(characterRoot)
+  state.characterRoot = new THREE.Group()
+  scene.add(state.characterRoot)
 
-  const loader = new GLTFLoader()
+  setStatus('Chargement catalogue…')
+  setBanner('')
 
-  setStatus('Chargement des modèles…')
   try {
-    const ok = (await tryLoadMayasiSet(loader, characterRoot)) || (await loadFallback(loader, characterRoot))
-    if (!ok) throw new Error('Aucun modèle chargeable')
+    const clips = await loadManifest()
+    if (!clips.length) throw new Error('Aucun clip Meshy')
 
-    // Frame the first visible pack
+    for (const c of clips) state.catalog.set(c.id, c)
+
+    const ordered = GROUPS.flatMap((g) => g.clips).filter((id) => state.catalog.has(id))
+    const extras = [...state.catalog.keys()].filter((id) => !ordered.includes(id))
+    const available = [...ordered, ...extras]
+    buildUI(available)
+
     const first =
-      state.packs.get('arise') ||
-      state.packs.get('idle') ||
-      state.packs.get('attack') ||
-      [...state.packs.values()][0]
-    if (first) {
-      first.root.visible = true
-      fitCameraToObject(camera, first.root, controls)
-      first.root.visible = false
-    }
+      available.find((id) => id === 'Casual_Walk') ||
+      available.find((id) => id === 'Running') ||
+      available[0]
 
-    setButtonsEnabled(true)
-    // Default: Arise if available else idle
-    const initial = state.packs.has('arise') ? 'arise' : 'idle'
-    playAction(initial)
-    setStatus('Prêt — clique une action', 'ready')
+    // Warm a few combat / dance clips in background after first paint
+    await playAction(first)
+    setStatus(`Prêt · ${available.length} animations Meshy`, 'ready')
+
+    const warm = ['Attack', 'Dead', 'Running', 'Boom_Dance', 'Skill_01'].filter((id) =>
+      state.catalog.has(id)
+    )
+    ;(async () => {
+      for (const id of warm) {
+        if (state.packs.has(id)) continue
+        try {
+          await ensurePack(id)
+        } catch {
+          /* ignore warm errors */
+        }
+      }
+    })()
   } catch (err) {
     console.error(err)
     setStatus('Échec de chargement', 'error')
-    setBanner(`Impossible de charger la scène 3D : ${err.message}`)
-    setButtonsEnabled(false)
+    setBanner(
+      `Impossible de charger Mayasi Meshy : ${err.message}. Place les GLB réels dans media/mayasi-assets/ puis npm run sync-assets.`
+    )
   }
 
-  for (const btn of els.buttons) {
-    btn.addEventListener('click', () => playAction(btn.dataset.action))
-  }
-
-  window.addEventListener('keydown', (e) => {
-    const map = { '1': 'arise', '2': 'attack', '3': 'dead', '4': 'idle' }
-    if (map[e.key]) playAction(map[e.key])
-  })
-
-  function onResize() {
+  window.addEventListener('resize', () => {
     const w = window.innerWidth
     const h = window.innerHeight
     camera.aspect = w / h
     camera.updateProjectionMatrix()
     renderer.setSize(w, h, false)
-  }
-  window.addEventListener('resize', onResize)
+  })
 
   function tick() {
     const dt = state.clock.getDelta()
-    for (const pack of new Set(state.packs.values())) {
+    for (const pack of state.packs.values()) {
       if (pack.root.visible) pack.mixer.update(dt)
     }
     controls.update()
-    // Subtle ring pulse
     ring.rotation.z += dt * 0.15
     renderer.render(scene, camera)
 
     state.frames += 1
     const now = performance.now()
     if (now - state.lastFps >= 500) {
-      const fps = Math.round((state.frames * 1000) / (now - state.lastFps))
-      els.fps.textContent = `${fps} fps`
+      els.fps.textContent = `${Math.round((state.frames * 1000) / (now - state.lastFps))} fps`
       state.frames = 0
       state.lastFps = now
     }

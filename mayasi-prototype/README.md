@@ -1,32 +1,29 @@
-# Mayasi — prototype cliquable
+# Mayasi — prototype cliquable (Meshy)
 
 ## Lancer
 
 ```bash
 cd mayasi-prototype
 npm install
-npm run sync-assets   # copie les GLB depuis uploads/ ou media/mayasi-assets/ si présents
+npm run sync-assets
 npm run dev
 ```
 
 Ouvre **http://localhost:5174/**
 
+`sync-assets` copie les **vrais** GLB (~4 Mo, magic glTF) depuis `/cursor/stores/self/media/mayasi-assets/` vers `public/models/` (ignore les stubs JS).
+
 ## Contrôles
 
-| UI / clavier | Action |
-|---|---|
-| **Arise** / `1` | Animation se relever |
-| **Attack** / `2` | Animation attaque |
-| **Dead** / `3` | Animation chute |
-| **Idle** / `4` | Pose / boucle repos |
-| Souris / doigt | Orbite |
-| Molette | Zoom |
+Boutons groupés :
 
-## Assets attendus (`public/models/`)
+- **Locomotion** — Casual_Walk, Unsteady_Walk, Running, RunFast
+- **Combat** — Attack, Triple_Combo_Attack, Boxing_Practice, BeHit_FlyUp, Dead
+- **Dance** — Boom_Dance, You_Groove, All_Night_Dance
+- **Skills** — Skill_01, Skill_03
 
-- `Mayasi.glb` (base)
-- `Meshy_AI_Urban_Ease_biped_Animation_Arise_withSkin.glb`
-- `Meshy_AI_Urban_Ease_biped_Animation_Attack_withSkin.glb`
-- `Meshy_AI_Urban_Ease_biped_Animation_Dead_withSkin.glb`
+Orbite souris/doigt · molette zoom.
 
-Sans ces fichiers, le viewer utilise un **stand-in** temporaire (RobotExpressive) pour garder la démo cliquable, avec un bandeau d’avertissement.
+## Assets
+
+Chaque fichier `*_withSkin_*.glb` Meshy est un personnage + clip. Le viewer swap le modèle au clic (fiable, pas de retarget).
