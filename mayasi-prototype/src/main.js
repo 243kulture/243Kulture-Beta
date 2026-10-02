@@ -231,7 +231,8 @@ async function playAction(id) {
     action.play()
 
     state.activeId = id
-    els.clipName.textContent = clip.name || id
+    // Meshy often embeds mismatched clip.name — show our catalog id
+    els.clipName.textContent = id
     els.groupName.textContent = state.groupOf.get(id) || '—'
     setStatus(`Lecture · ${pretty(id)}`, 'ready')
   } catch (err) {
