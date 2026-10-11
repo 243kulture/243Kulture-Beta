@@ -50,10 +50,18 @@ Dans **SQL Editor**, exécute **dans cet ordre** :
 5. `supabase/migrations/20260822_p3_social_experience.sql`
 6. `supabase/migrations/20260822_p4_progress_persistence.sql` ← XP / streak / badges
 7. `supabase/migrations/20261001_p4_friend_invitations.sql` ← invitations d'amis
+8. `supabase/migrations/20261001_p4c_revoke_anon_story_reply.sql`
+9. `supabase/migrations/20261001_p6_notifications_read_at_only.sql`
+10. `supabase/migrations/20261011_p7_user_follows.sql` ← Follow utilisateur (≠ Friend)
+11. `supabase/migrations/20261011_p8_onboarding_gate.sql` ← 8 langues + acceptation CGU
 
 Les migrations sont idempotentes, mais l'ordre compte la première fois.
 Sans l'étape 6, les gains d'XP et le streak ne peuvent pas être enregistrés
 (le P1 bloque les updates client sur `profiles.xp` / `streak_days`).
+
+**Entrée app (P8) :** langue (localStorage + `profiles.language`) → CGU
+(`legal_consents` / version `v1.0`) → Auth Supabase → onboarding → app.
+Pas d'accès communauté / fil / stories sans session.
 
 ---
 
