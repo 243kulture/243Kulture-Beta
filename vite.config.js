@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      includeAssets: ["favicon.png", "logo.jpg"],
       manifest: {
         name: "243Kulture",
         short_name: "243Kulture",
