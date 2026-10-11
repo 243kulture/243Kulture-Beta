@@ -807,6 +807,11 @@ export default function App() {
     if (def) return t[def.key];
     return t[id] || id; // badge1/badge2/badge3 (quiz)
   };
+  const visibleFeedPosts = feedMode === "abonnements"
+    ? filterSubscriptionFeed(posts, followingUsers, user?.id)
+    : posts;
+  const followingProfiles = followingUsers.map((id) => communityProfiles[id]).filter(Boolean);
+  const followerProfiles = followerUsers.map((id) => communityProfiles[id]).filter(Boolean);
 
   const gate = resolveEntryGate({
     hasLanguage: Boolean(readStoredLang()),
@@ -1388,21 +1393,22 @@ export default function App() {
     setFollowingUsers(followingIds);
     setFollowerUsers(followerIds);
 
-    if (inviteRes.error) {
-      console.warn("[friend_invitations] load", inviteRes.error.message);
-    } else {
-      const incoming = (inviteRes.data || []).filter((i) => i.recipient_id === user.id);
-      const outgoing = (inviteRes.data || []).filter((i) => i.sender_id === user.id);
-      const profiles = await hydrateProfiles([
-        ...incoming.map((i) => i.sender_id),
-        ...outgoing.map((i) => i.recipient_id),
-        ...followingIds,
-        ...followerIds,
-      ]);
-      setCommunityProfiles((prev) => mergeProfileMap(prev, Object.values(profiles)));
-      setIncomingInvites(incoming.map((i) => ({ ...i, profile: profiles[i.sender_id] || {} })));
-      setOutgoingInvites(outgoing.map((i) => ({ ...i, profile: profiles[i.recipient_id] || {} })));
-    }
+    const incoming = (!inviteRes.error && inviteRes.data)
+      ? inviteRes.data.filter((i) => i.recipient_id === user.id)
+      : [];
+    const outgoing = (!inviteRes.error && inviteRes.data)
+      ? inviteRes.data.filter((i) => i.sender_id === user.id)
+      : [];
+    if (inviteRes.error) console.warn("[friend_invitations] load", inviteRes.error.message);
+    const profiles = await hydrateProfiles([
+      ...incoming.map((i) => i.sender_id),
+      ...outgoing.map((i) => i.recipient_id),
+      ...followingIds,
+      ...followerIds,
+    ]);
+    setCommunityProfiles((prev) => mergeProfileMap(prev, Object.values(profiles)));
+    setIncomingInvites(incoming.map((i) => ({ ...i, profile: profiles[i.sender_id] || {} })));
+    setOutgoingInvites(outgoing.map((i) => ({ ...i, profile: profiles[i.recipient_id] || {} })));
 
     if (!discoverRes.error && discoverRes.data) {
       setDiscoverPeople(discoverRes.data);
@@ -1583,6 +1589,13 @@ export default function App() {
         time: new Date(p.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }),
       })));
     }
+  };
+
+  const isRealProfileId = (id) => Boolean(id && id !== "me" && typeof id === "string" && id.length >= 32);
+  const openAuthorProfile = (authorId) => {
+    if (!authorId) return;
+    if (authorId === "me" || authorId === user?.id) { go("profil"); return; }
+    if (isRealProfileId(authorId) || communityProfiles[authorId]) openPublicProfile(authorId);
   };
 
   const RelationActions = ({ profileId, compact }) => {
@@ -2309,9 +2322,15 @@ export default function App() {
         .friend-btn.pending { background:rgba(232,184,75,0.12); border:1px solid rgba(232,184,75,0.35); color:var(--gold); }
         .friend-actions { margin-left:auto; display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
         .friend-card.clickable { cursor:pointer; }
-        .subtab-row { display:flex; gap:8px; margin-bottom:16px; }
-        .subtab { flex:1; text-align:center; padding:9px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11.5px; cursor:pointer; color:var(--muted); font-weight:600; }
+        .subtab-row { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+        .subtab { flex:1 1 calc(33% - 6px); min-width:88px; text-align:center; padding:9px 6px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11px; cursor:pointer; color:var(--muted); font-weight:600; }
         .subtab.selected { background:var(--gold); color:#1a1200; border-color:var(--gold); }
+        .feed-mode-row { display:flex; gap:8px; margin-bottom:14px; }
+        .profile-stats-row { display:flex; gap:10px; justify-content:center; margin:14px 0 18px; }
+        .profile-stat { flex:1; max-width:110px; text-align:center; background:var(--glass); border:1px solid var(--glass-border); border-radius:12px; padding:10px 6px; }
+        .profile-stat .n { font-size:16px; font-weight:800; color:var(--gold); }
+        .profile-stat .l { font-size:10px; color:var(--muted); margin-top:2px; }
+        .post-name.clickable, .comment-item strong.clickable { cursor:pointer; color:var(--gold); }
         .post-compose { display:flex; gap:8px; margin-bottom:16px; }
         .post-compose input { flex:1; background:var(--glass); border:1px solid var(--glass-border); border-radius:12px; padding:10px 12px; color:var(--text); font-size:12.5px; outline:none; }
         .post-compose input::placeholder { color:var(--muted); }
@@ -2628,16 +2647,29 @@ export default function App() {
                   </div>
                   {otherStories.map((s) => {
                     const m = COMMUNITY_MEMBERS.find((mm) => mm.id === s.authorId);
-                    const name = s.authorName || (m ? m.name : "243Kulture");
+                    const profile = communityProfiles[s.authorId];
+                    const name = s.authorName || profile?.display_name || (m ? m.name : "243Kulture");
                     return (
-                      <div className="story-chip" key={s.id} onClick={() => openStory(s.id)}>
+                      <div
+                        className="story-chip"
+                        key={s.id}
+                        onClick={() => openStory(s.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          openAuthorProfile(s.authorId);
+                        }}
+                      >
                         <div className={`story-ticket${!seenStories.includes(s.id) ? " unseen" : ""}`}>
                           {s.media ? (
                             <div className="story-ticket-media">{s.type === "video" ? <video src={s.media} muted playsInline /> : <img src={s.media} alt="" />}</div>
                           ) : <div className="story-ticket-media" style={{ background: s.color || "linear-gradient(145deg,var(--blue),var(--green))" }} />}
                           <div className="story-ticket-overlay" />
-                          <div className="story-ticket-icon">{s.authorIcon || (m ? m.icon : "🎤")}</div>
-                          <div className="story-ticket-name">{name.split(" ")[0]}</div>
+                          <div className="story-ticket-icon">{s.authorIcon || profile?.avatar_icon || (m ? m.icon : "🎤")}</div>
+                          <div
+                            className="story-ticket-name"
+                            onClick={(e) => { e.stopPropagation(); openAuthorProfile(s.authorId); }}
+                            style={{ cursor: isRealProfileId(s.authorId) ? "pointer" : "default" }}
+                          >{name.split(" ")[0]}</div>
                           <div className="story-ticket-label">Kulture</div>
                         </div>
                       </div>
@@ -3468,6 +3500,9 @@ export default function App() {
                 <>
                   <div className="subtab-row">
                     <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
+                    <div className={`subtab${communityTab === "abonnements" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnements")}>{t.tab_following}</div>
+                    <div className={`subtab${communityTab === "abonnes" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnes")}>{t.tab_followers}</div>
+                    <div className={`subtab${communityTab === "decouvrir" ? " selected" : ""}`} onClick={() => setCommunityTab("decouvrir")}>{t.tab_discover_people}</div>
                     <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
                     <div className={`subtab${communityTab === "messages" ? " selected" : ""}`} onClick={() => setCommunityTab("messages")}>{t.tab_messages}</div>
                   </div>
@@ -3546,8 +3581,82 @@ export default function App() {
                     </>
                   )}
 
+                  {communityTab === "abonnements" && (
+                    <>
+                      <div className="section-label">{t.tab_following}</div>
+                      <div className="note" style={{ marginBottom: 14 }}>{followingUsers.length} · {t.following_count}</div>
+                      {followingProfiles.length === 0 && <div className="empty-state"><span className="ic">👀</span><div className="txt">{t.no_follows}</div></div>}
+                      {followingProfiles.map((p) => (
+                        <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                          <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                          <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.following_action}</div></div>
+                          <RelationActions profileId={p.id} compact />
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {communityTab === "abonnes" && (
+                    <>
+                      <div className="section-label">{t.tab_followers}</div>
+                      <div className="note" style={{ marginBottom: 14 }}>{followerUsers.length} · {t.followers_count}</div>
+                      {followerProfiles.length === 0 && <div className="empty-state"><span className="ic">👥</span><div className="txt">{t.no_followers}</div></div>}
+                      {followerProfiles.map((p) => (
+                        <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                          <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                          <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.followers_count}</div></div>
+                          <RelationActions profileId={p.id} compact />
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {communityTab === "decouvrir" && (
+                    <>
+                      <div className="section-label">{t.discover_people_title}</div>
+                      <div className="note" style={{ marginBottom: 14 }}>{t.discover_people_sub}</div>
+                      <div className="search-bar" style={{ marginBottom: 14 }}>
+                        <Search size={16} strokeWidth={2} />
+                        <input type="text" placeholder={t.user_search_placeholder} value={userSearchQuery} onChange={(e) => searchUsers(e.target.value)} />
+                      </div>
+                      {userSearchQuery.trim().length >= 2 ? (
+                        <>
+                          {isSearchingUsers && <div className="note" style={{ marginBottom: 10 }}>{t.searching}</div>}
+                          {!isSearchingUsers && userSearchResults.length === 0 && <div className="note" style={{ marginBottom: 14 }}>{t.no_users_found}</div>}
+                          {userSearchResults.map((p) => (
+                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                              <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                              <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.view_profile}</div></div>
+                              <RelationActions profileId={p.id} compact />
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          {discoverPeople.filter((p) => !followingUsers.includes(p.id)).map((p) => (
+                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                              <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                              <div>
+                                <div className="friend-name">{p.display_name || p.creator_name || t.profile_fan}</div>
+                                <div className="friend-bio">{p.creator_status && p.creator_status !== "member" ? creatorStatusLabel(p.creator_status, lang) : t.discover_people_sub}</div>
+                              </div>
+                              <RelationActions profileId={p.id} compact />
+                            </div>
+                          ))}
+                          {discoverPeople.filter((p) => !followingUsers.includes(p.id)).length === 0 && (
+                            <div className="empty-state"><span className="ic">🔍</span><div className="txt">{t.user_search_hint}</div></div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+
                   {communityTab === "feed" && (
                     <>
+                      <div className="feed-mode-row">
+                        <div className={`subtab${feedMode === "pourtoi" ? " selected" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</div>
+                        <div className={`subtab${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
+                      </div>
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
                           onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
@@ -3555,13 +3664,22 @@ export default function App() {
                         <div className="post-send" onClick={addPost}>{t.post_btn}</div>
                       </div>
                       {postMediaPreview && <div className="post-media-preview">{postMediaType === "video" ? <video src={postMediaPreview} controls /> : <img src={postMediaPreview} alt="" />}<button onClick={() => { setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null); }}><X size={14}/></button></div>}
-                      {posts.map((p) => {
+                      {feedMode === "abonnements" && visibleFeedPosts.length === 0 && (
+                        <div className="empty-state"><span className="ic">👀</span><div className="txt">{t.feed_subs_empty}</div></div>
+                      )}
+                      {visibleFeedPosts.map((p) => {
                         const comments = commentsByPost[p.id] || [];
                         return (
                         <div className="post-card" key={p.id}>
                           <div className="post-head">
-                            <div className="post-avatar">{p.icon}</div>
-                            <div><div className="post-name">{p.author}</div><div className="post-time">{p.time}</div></div>
+                            <div className="post-avatar" style={{ cursor: p.authorId ? "pointer" : "default" }} onClick={() => openAuthorProfile(p.authorId)}>{p.icon}</div>
+                            <div>
+                              <div
+                                className={`post-name${p.authorId ? " clickable" : ""}`}
+                                onClick={() => openAuthorProfile(p.authorId)}
+                              >{p.author}</div>
+                              <div className="post-time">{p.time}</div>
+                            </div>
                           </div>
                           {p.repost_of && <div className="post-repost-label"><Repeat2 size={13}/> Republication</div>}
                           <div className="post-text">{p.text}</div>
@@ -3575,9 +3693,17 @@ export default function App() {
                           <div className="comments-box">
                             {comments.filter((c) => !c.parent_id).map((c) => (
                               <div className="comment-thread" key={c.id}>
-                                <div className="comment-item"><strong>{c.author}</strong><span>{c.text}</span></div>
+                                <div className="comment-item">
+                                  <strong className={c.user_id ? "clickable" : ""} onClick={() => openAuthorProfile(c.user_id)}>{c.author}</strong>
+                                  <span>{c.text}</span>
+                                </div>
                                 <button className="comment-reply-btn" onClick={() => setReplyingToComment(`${p.id}:${c.id}`)}>Répondre</button>
-                                {comments.filter((r) => r.parent_id === c.id).map((r) => <div className="comment-item comment-reply" key={r.id}><strong>{r.author}</strong><span>{r.text}</span></div>)}
+                                {comments.filter((r) => r.parent_id === c.id).map((r) => (
+                                  <div className="comment-item comment-reply" key={r.id}>
+                                    <strong className={r.user_id ? "clickable" : ""} onClick={() => openAuthorProfile(r.user_id)}>{r.author}</strong>
+                                    <span>{r.text}</span>
+                                  </div>
+                                ))}
                                 {replyingToComment === `${p.id}:${c.id}` && <div className="comment-compose"><input autoFocus placeholder={`Répondre à ${c.author}…`} value={commentDrafts[`${p.id}:${c.id}`] || ""} onChange={(e) => setCommentDrafts((d) => ({ ...d, [`${p.id}:${c.id}`]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && togglePostComment(p.id, c.id)} /><button onClick={() => togglePostComment(p.id, c.id)}><Send size={14}/></button></div>}
                               </div>
                             ))}
@@ -3690,7 +3816,11 @@ export default function App() {
           const s = order.find((x) => x.id === activeStoryId);
           if (!s) return null;
           const m = s.authorId === "me" ? null : COMMUNITY_MEMBERS.find((mm) => mm.id === s.authorId);
+          const profile = s.authorId === "me" ? null : communityProfiles[s.authorId];
           const hoursLeft = Math.max(0, Math.ceil((DAY_MS - (Date.now() - s.createdAt)) / 3600000));
+          const storyAuthorLabel = s.authorId === "me"
+            ? t.story_your
+            : (s.authorName || profile?.display_name || (m ? m.name : "243Kulture"));
           return (
             <div className="story-viewer">
               <div className="story-progress-row">
@@ -3701,9 +3831,17 @@ export default function App() {
                 ))}
               </div>
               <div className="story-header">
-                <div className="sav">{s.authorId === "me" ? "🎤" : (m ? m.icon : "🎤")}</div>
+                <div
+                  className="sav"
+                  style={{ cursor: s.authorId && s.authorId !== "me" ? "pointer" : "default" }}
+                  onClick={() => openAuthorProfile(s.authorId)}
+                >{s.authorId === "me" ? "🎤" : (s.authorIcon || profile?.avatar_icon || (m ? m.icon : "🎤"))}</div>
                 <div>
-                  <div className="sname">{s.authorId === "me" ? t.story_your : (m ? m.name : "243Kulture")}</div>
+                  <div
+                    className="sname"
+                    style={{ cursor: s.authorId && s.authorId !== "me" ? "pointer" : "default" }}
+                    onClick={() => openAuthorProfile(s.authorId)}
+                  >{storyAuthorLabel}</div>
                   <div className="stime">{t.story_expires} {hoursLeft}{t.story_hours}</div>
                 </div>
                 <div className="story-close" onClick={closeStory}><X size={22} strokeWidth={2} /></div>
@@ -3805,15 +3943,32 @@ export default function App() {
               {!viewedProfileLoading && viewedProfile && (
                 <>
                   <div className="profile-avatar">{viewedProfile.avatar_icon || "🎶"}</div>
-                  <div className="profile-name">{viewedProfile.display_name || t.profile_fan}</div>
+                  <div className="profile-name">{viewedProfile.display_name || viewedProfile.creator_name || t.profile_fan}</div>
                   {viewedProfile.creator_status && viewedProfile.creator_status !== "member" && (
                     <div className="streak-pill" style={{ margin: "6px auto 10px", display: "flex", width: "fit-content" }}><Star size={13} /> {creatorStatusLabel(viewedProfile.creator_status, lang)}</div>
                   )}
+                  {viewedProfile.creator_type && <div className="note" style={{ textAlign: "center", marginBottom: 4 }}>{t.profile_creator_type}: {viewedProfile.creator_type}</div>}
                   {viewedProfile.onboarding_country && <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>{viewedProfile.onboarding_country}</div>}
                   {viewedProfile.creator_bio && <div className="note" style={{ textAlign: "center", marginBottom: 14 }}>{viewedProfile.creator_bio}</div>}
-                  <div style={{ display: "flex", justifyContent: "center" }}>
+                  <div className="profile-stats-row">
+                    <div className="profile-stat"><div className="n">{viewedProfileStats.followers}</div><div className="l">{t.followers_count}</div></div>
+                    <div className="profile-stat"><div className="n">{viewedProfileStats.following}</div><div className="l">{t.following_count}</div></div>
+                    <div className="profile-stat"><div className="n">{viewedProfileStats.posts}</div><div className="l">{t.posts_count}</div></div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                     <RelationActions profileId={viewedProfile.id} />
                   </div>
+                  <div className="section-label">{t.profile_public_posts}</div>
+                  {viewedProfilePosts.length === 0 && <div className="note">{t.feed_subs_empty}</div>}
+                  {viewedProfilePosts.map((p) => (
+                    <div className="post-card" key={p.id}>
+                      <div className="post-time" style={{ marginBottom: 6 }}>{p.time}</div>
+                      <div className="post-text">{p.text}</div>
+                      {p.media_url && (p.media_type === "video"
+                        ? <video className="post-media" src={p.media_url} controls />
+                        : <img className="post-media" src={p.media_url} alt="" />)}
+                    </div>
+                  ))}
                 </>
               )}
             </div>
