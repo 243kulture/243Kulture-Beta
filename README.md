@@ -102,7 +102,13 @@ projet Supabase) :
 - Messages privés + notifications message / story (trigger P3)
 - Amis : recherche, profil public, invitations (send / accept / decline /
   cancel / remove) via RPCs P4b — pas d'INSERT client sur `friendships`
+- Follow utilisateurs (`user_follows` / `follow_user` / `unfollow_user`) —
+  distinct des invitations d'amis ; onglets Abonnements / Abonnés / Découvrir
+- Gate obligatoire langue → CGU (`legal_consents` / `accept_legal_document`) →
+  Auth Supabase (pas de bypass démo)
+- Profils publics : stats + posts via `get_public_profile_stats`
 - Notifications `friend_invite` / `friend_accepted` / `message` / `story_reply`
+  / `user_follow`
 - XP via RPC `increment_xp`, streak via `bump_daily_streak`, badges +
   `quiz_results` (nécessite migration P4a)
 - Creator Experience V1 (statut, studio, portfolio à la une ≤ 6)
@@ -143,29 +149,31 @@ Checklist amis : `supabase/VALIDATION_P4.md`.
 ├── package.json
 ├── vite.config.js          ← PWA
 ├── .env.example
-├── public/                 ← favicon + icônes PWA
+├── public/                 ← logo.jpg + favicon + icônes PWA
+├── scripts/                ← tests gate + social rules
 ├── supabase/
 │   ├── schema.sql
 │   ├── VALIDATION_P4.md
-│   └── migrations/
-│       ├── 20260822_p1_security.sql
-│       ├── 20260822_p2_creator_accounts.sql
-│       ├── 20260822_p2_creator_experience.sql
-│       ├── 20260822_p3_social_experience.sql
-│       ├── 20260822_p4_progress_persistence.sql
-│       └── 20261001_p4_friend_invitations.sql
+│   └── migrations/         ← P1…P4b, P4c, P6, P7 follows, P8 gate/CGU
 └── src/
     ├── main.jsx
     ├── App.jsx             ← application (monolithe volontaire)
-    └── lib/supabaseClient.js
+    ├── i18n/               ← 8 packs JSON + index.js
+    └── lib/
+        ├── supabaseClient.js
+        ├── onboardingGate.js
+        └── socialRules.js
 ```
+
+Tests : `npm test` (gate + social rules). Build : `npm run build`.
 
 ---
 
 ## 7. Langues
 
-Interface : **FR / EN / NL / Lingala (`ln`)**. Les contenus éditoriaux et
-médias tiers restent dans leur langue d'origine.
+Interface : **8 langues** — `en`, `fr`, `kg`, `ln`, `mongo`, `nl`, `sw`, `lua`
+(`src/i18n/*.json`). Les packs congolais peuvent être marqués `_provisional`.
+Contenu éditorial hardcodé : encore surtout FR/EN/NL/LN (`contentLang` fallback).
 
 ---
 
