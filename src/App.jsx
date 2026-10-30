@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "./lib/supabaseClient.js";
+import {
+  canFollow, filterSubscriptionFeed, isFollowing, mergeProfileMap, notificationIcon,
+} from "./lib/socialRules.js";
+import {
+  I18N, LANG_LABELS, LANG_META, LANG_STORAGE_KEY, REQUIRED_CGU_VERSION,
+  REQUIRED_PRIVACY_VERSION, contentLang, getUiStrings, isProvisionalLang,
+  persistLangLocal, readStoredLang, resolveLang,
+} from "./i18n/index.js";
+import {
+  canSubmitAuth, hasAcceptedRequiredVersion, redirectForGate, resolveEntryGate,
+} from "./lib/onboardingGate.js";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
   Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
@@ -89,10 +100,11 @@ const HERO_SLIDES_I18N = {
 };
 const EVENT_TAG = { fr: "EVENEMENT", ln: "LIKAMBO", en: "EVENT", nl: "EVENEMENT" };
 const getHeroSlides = (lang) => {
-  const t = I18N[lang], subs = HERO_SLIDES_I18N[lang];
+  const cl = contentLang(lang);
+  const t = getUiStrings(lang), subs = HERO_SLIDES_I18N[cl];
   return [
     { id: "h1", tag: t.hero_tag_une, title: "Fally Ipupa - Stade de France", sub: subs[0], bg: "linear-gradient(135deg,var(--blue),#0b1c33)", onClickId: "p2" },
-    { id: "h2", tag: EVENT_TAG[lang], title: "Creative Currencies", sub: subs[1], img: CREATIVE_CURRENCIES_IMG, link: "https://www.instagram.com/p/Dbd33hTjnBG/?igsh=MXV3czRneXYxM2Zlcw==" },
+    { id: "h2", tag: EVENT_TAG[cl], title: "Creative Currencies", sub: subs[1], img: CREATIVE_CURRENCIES_IMG, link: "https://www.instagram.com/p/Dbd33hTjnBG/?igsh=MXV3czRneXYxM2Zlcw==" },
     { id: "h3", tag: "CONCERT", title: "JB Mpiana - Accor Arena", sub: subs[2], img: JB_MPIANA_IMG, link: "https://www.accorarena.com/fr/events-and-tickets/jb-mpiana--f4122" },
     { id: "h4", tag: "CONCERT", title: "Fally Ipupa - The O2 London", sub: subs[3], img: FALLY_O2_IMG, link: "https://www.theo2.co.uk/events/detail/fally-ipupa" },
     { id: "h5", tag: "CONCERT", title: "Innoss'B - Arena Grand Paris", sub: subs[4], img: INNOSSB_IMG, link: "https://arenagrandparis.fr/evenement/innossb/" },
@@ -107,7 +119,8 @@ const EVENT_CAT_LABELS = {
   nl: { concert: "Concert", event: "Evenement" },
 };
 const getEvents = (lang) => {
-  const subs = HERO_SLIDES_I18N[lang];
+  const cl = contentLang(lang);
+  const subs = HERO_SLIDES_I18N[cl];
   return [
     { id: "ev1", cat: "concert", title: "Fally Ipupa - Stade de France", sub: subs[0], bg: "linear-gradient(135deg,var(--blue),#0b1c33)", baseGoing: 1240, link: null },
     { id: "ev2", cat: "event", title: "Creative Currencies", sub: subs[1], img: CREATIVE_CURRENCIES_IMG, baseGoing: 382, link: "https://www.instagram.com/p/Dbd33hTjnBG/?igsh=MXV3czRneXYxM2Zlcw==" },
@@ -150,7 +163,7 @@ const INSTA_I18N = {
     { type: "reel", title: "Onze allereerste reeks trainingen vindt plaats op 2, 3 en 4 september in SILIKIN Village, Kinshasa", excerpt: "Videopresentatie van het Creative Currencies-evenement." },
   ],
 };
-const getInstaPosts = (lang) => INSTA_I18N[lang].map((it, i) => ({ id: "ig" + (i + 1), url: INSTA_URLS[i], ...it }));
+const getInstaPosts = (lang) => INSTA_I18N[contentLang(lang)].map((it, i) => ({ id: "ig" + (i + 1), url: INSTA_URLS[i], ...it }));
 
 const getCatalog = (lang) => {
   const episodes = getYtEpisodes(), insta = getInstaPosts(lang);
@@ -186,7 +199,7 @@ const NOTIFS_I18N = {
     { icon: "🔗", text: "243Kulture plaatste een nieuwe Instagram-story", time: "2 dagen geleden", unread: false },
   ],
 };
-const getNotifs = (lang) => NOTIFS_I18N[lang];
+const getNotifs = (lang) => NOTIFS_I18N[contentLang(lang)];
 
 // ---------- Suivre des artistes (noms propres, non traduits) ----------
 const ARTISTS = [
@@ -267,7 +280,7 @@ const HISTORY_FACTS_I18N = {
     { title: "Ndombolo-generatie", text: "In de jaren 1990 explodeerde ndombolo, een ritmische afgeleide van rumba, en bracht het een nieuwe generatie Congolese artiesten op het internationale toneel." },
   ],
 };
-const getHistoryFacts = (lang) => HISTORY_FACTS_I18N[lang];
+const getHistoryFacts = (lang) => HISTORY_FACTS_I18N[contentLang(lang)];
 
 // ---------- Timeline Histoire (🕰️) ----------
 const TIMELINE_I18N = {
@@ -308,7 +321,7 @@ const TIMELINE_I18N = {
     { period: "2020", title: "Wereldwijde erkenning", text: "De Congolese rumba werd in 2021 toegevoegd aan de UNESCO-lijst van immaterieel cultureel erfgoed, terwijl een nieuwe generatie artiesten rumba, afrobeat en urban sounds mengt om een wereldwijd publiek te bereiken." },
   ],
 };
-const getTimeline = (lang) => TIMELINE_I18N[lang];
+const getTimeline = (lang) => TIMELINE_I18N[contentLang(lang)];
 
 // ---------- Collections 243Kulture ----------
 const COLLECTIONS_DEFS = [
@@ -349,7 +362,7 @@ const QUIZ_I18N = {
     { q: "In welke stad ontstond de Congolese rumba in de jaren 1920?", options: ["Kinshasa (Léopoldville)", "Lubumbashi", "Brazzaville"], correct: 0 },
   ],
 };
-const getQuizQuestions = (lang) => QUIZ_I18N[lang];
+const getQuizQuestions = (lang) => QUIZ_I18N[contentLang(lang)];
 
 // ---------- Système XP / Niveaux culturels ----------
 const LEVEL_NAMES = {
@@ -361,7 +374,7 @@ const LEVEL_NAMES = {
 const XP_PER_LEVEL = 120; // XP nécessaire par niveau
 const getLevelInfo = (xp, lang) => {
   const number = Math.max(1, Math.floor(xp / XP_PER_LEVEL) + 1);
-  const names = LEVEL_NAMES[lang];
+  const names = LEVEL_NAMES[contentLang(lang)] || LEVEL_NAMES.fr;
   let name = names[0][1];
   for (const [threshold, label] of names) if (number >= threshold) name = label;
   const xpIntoLevel = xp % XP_PER_LEVEL;
@@ -393,7 +406,7 @@ const DEBATE_I18N = {
   ],
 };
 const DEBATE_SEED_VOTES = { d1: [58, 42], d2: [63, 37], d3: [55, 45] }; // % de base (maquette communautaire)
-const getDebates = (lang) => DEBATE_I18N[lang];
+const getDebates = (lang) => DEBATE_I18N[contentLang(lang)];
 const DEBATE_REACTIONS = ["❤️", "🔥", "😂", "🥹", "👏", "🤯", "🇨🇩"];
 
 // ---------- Badges culturels étendus (paliers) ----------
@@ -417,7 +430,7 @@ const COMMUNITY_BIO_I18N = {
 };
 const COMMUNITY_NAMES = ["Grace M.", "Patrick K.", "Nadia B.", "Josué T.", "Aline W."];
 const COMMUNITY_ICONS = ["🎶", "🎧", "📚", "🕺", "🎤"];
-const getCommunityMembers = (lang) => COMMUNITY_NAMES.map((name, i) => ({ id: "u" + (i + 1), name, bio: COMMUNITY_BIO_I18N[lang][i], icon: COMMUNITY_ICONS[i] }));
+const getCommunityMembers = (lang) => COMMUNITY_NAMES.map((name, i) => ({ id: "u" + (i + 1), name, bio: COMMUNITY_BIO_I18N[contentLang(lang)][i], icon: COMMUNITY_ICONS[i] }));
 
 // ---------- Stories (24h) — quelques stories de démo de la communauté ----------
 const STORY_SEED_TEXT = {
@@ -441,417 +454,11 @@ const STORY_COLORS = [
   "linear-gradient(135deg,#833ab4,#fd1d1d)",
 ];
 
-const I18N = {
-  fr: {
-    appname: "243Kulture", apptag: "Rumba • Histoire • Culture",
-    nav_home: "Accueil", nav_pod: "Podcasts", nav_discover: "Découvrir", nav_art: "Articles", nav_fav: "Favoris", nav_comm: "Communauté", nav_prof: "Profil",
-    // home
-    home_follow: "Suis tes artistes", home_history: "Ce jour dans l'histoire", home_quiz_title: "Quiz culture congolaise",
-    home_quiz_sub: "Teste tes connaissances et débloque un badge", home_yt: "Derniers épisodes YouTube", home_yt_sub: "243Kulture • Voir sur YouTube ↗",
-    home_trending: "En tendance", home_community_title: "Rejoins la communauté 243Kulture", home_community_sub: "TikTok, Instagram, YouTube — la diaspora se retrouve ici",
-    home_article_bit: "La rumba, patrimoine UNESCO", home_article_bis: "Dernier article 243Kulture",
-    hero_tag_une: "A LA UNE", hero_une_title: "Fally Ipupa - Stade de France", hero_une_sub: "Concert complet • Rejoins des milliers de fans en direct",
-    hero_billets: "Billets ↗", hero_event: "Voir l'événement ↗",
-    // podcasts
-    pod_title: "Podcasts & Lives", pod_sub: "Tous les concerts et interviews", pod_all: "Tous", pod_live: "Live", pod_backstage: "Backstage", pod_playlist: "Playlist",
-    pod_empty: "Aucun contenu dans cette catégorie", pod_yt_section: "Chaîne YouTube 243Kulture", pod_concerts_section: "Concerts & backstages",
-    // player
-    player_title: "Lecture", player_back: "← Retour", player_fav: "Favori", player_share: "Partager",
-    player_watch: "▶️ Regarder", player_listen: "🎧 Ecouter en fond",
-    player_note1: "Les vues et écoutes sont comptabilisées directement sur la chaîne", player_note1b: "YouTube 243Kulture",
-    player_note2: "Remplace le texte du lecteur par un vrai iframe YouTube (ID vidéo) pour brancher le lecteur réel.",
-    // articles
-    art_title: "Articles", art_sub: "Histoire & culture congolaise", art_insta: "Sur Instagram",
-    art_insta_placeholder: "📷 Embed Instagram — à brancher via le script officiel embed.js en dehors du sandbox artifact",
-    art_our_articles: "Nos articles", art_back: "← Retour aux articles",
-    // social
-    social_title: "Nos Réseaux", social_sub: "Retrouve-nous partout", social_back: "← Retour au profil",
-    social_p1: "La communauté 243Kulture t'attend", social_p2: "Rejoins des milliers de fans de rumba et d'histoire congolaise",
-    social_note: "⚠️ Remplace les liens par les vrais identifiants 243Kulture avant mise en prod.",
-    // search
-    search_title: "Rechercher", search_sub: "Artistes, concerts, articles", search_placeholder: "Ex: Fally Ipupa, rumba, UNESCO...",
-    search_empty: "Tape un nom d'artiste, un mot-clé ou un titre d'article", search_noresult: "Aucun résultat pour",
-    // favoris
-    favtitle: "Mes favoris", favtag: "Podcasts et articles enregistrés",
-    fav_empty1: "Aucun favori pour l'instant.", fav_empty2: "Touche le cœur sur un podcast ou un article pour le retrouver ici.",
-    // profil
-    profiltitle: "Profil", profiltag: "Tes réglages 243Kulture", profile_guest: "Invité", profile_notconnected: "Non connecté", profile_connected: "Connecté avec",
-    profile_logout: "Se déconnecter", profile_fan: "Fan de rumba", profile_member: "Membre de la communauté 243Kulture",
-    sec_connexion: "Connexion", connexion_note: "Connecte-toi pour retrouver tes favoris et recevoir des notifications personnalisées.",
-    btn_google: "Continuer avec Google", btn_meta: "Continuer avec Meta", btn_tiktok: "Continuer avec TikTok",
-    btn_signup: "Créer un compte", btn_login: "Se connecter", auth_create_title: "Créer ton compte", auth_have_account: "J'ai déjà un compte", auth_connecting: "Connexion…", auth_recover_title: "Récupérer ton compte",
-    oauth_redirecting: "Redirection vers Google…", oauth_error: "Connexion Google impossible. Réessaie.", oauth_provider_disabled: "Google n'est pas encore activé sur ce projet. Configure le provider dans Supabase.", oauth_cancelled: "Connexion Google annulée.",
-    auth_mock_note: "Maquette : le vrai bouton demandera l'intégration OAuth de chaque plateforme (clés API + backend) avant la mise en prod.",
-    sec_community: "Ma communauté", my_friends: "Mes amis 243Kulture", friends_count_sub: "ami(s) • Trouver des fans",
-    sec_followed: "Artistes suivis", sec_badges: "Mes badges",
-    sec_notifs: "Notifications", notif_toggle_lab: "Activer les notifications", notif_toggle_sub: "Nouveaux lives, articles et concerts",
-    notif_see: "Voir mes notifications", notif_see_sub: "Historique des alertes",
-    sec_lang: "Langue", lang_note: "La traduction s'applique à l'interface (menus, titres). Les articles et vidéos restent dans leur langue d'origine.",
-    sec_reseaux: "Réseaux", social_card_title: "Nos réseaux sociaux", social_card_sub: "YouTube, TikTok, Instagram",
-    // notifications
-    notif_title: "Notifications",
-    // quiz
-    quiz_title: "Quiz culture", quiz_sub: "Rumba & histoire congolaise", quiz_next: "Question suivante", quiz_score: "Voir mon score",
-    quiz_result_badge: "Badge débloqué :", quiz_replay: "Rejouer", quiz_score_of: "bonnes réponses",
-    badge1: "Connaisseur de la rumba", badge2: "Amateur éclairé", badge3: "Débutant curieux",
-    // community hub
-    comm_title: "Ma communauté", comm_sub: "Amis, publications & messages", comm_locked: "Connecte-toi (Google, Meta ou TikTok) depuis ton profil pour rejoindre la communauté.",
-    tab_amis: "Amis", tab_feed: "Publications", tab_messages: "Messages",
-    user_search_placeholder: "Chercher un utilisateur par nom...", searching: "Recherche...", no_users_found: "Aucun utilisateur trouvé.",
-    user_search_hint: "Cherche quelqu'un par son nom pour l'ajouter en ami.",
-    friends_have: "Tu as", friends_on_app: "ami(s) sur 243Kulture.",
-    add_friend: "+ Ajouter", added_friend: "✓ Ami",
-    invite_friend: "Inviter", invite_sent: "Invitation envoyée", invite_received: "Invitation reçue",
-    invite_accept: "Accepter", invite_decline: "Refuser", invite_cancel: "Annuler", invite_remove: "Retirer",
-    invites_in: "Invitations reçues", invites_out: "Invitations envoyées",
-    relation_friends: "Vous êtes amis", relation_none: "Pas encore d'amis",
-    public_profile: "Profil", view_profile: "Voir le profil",
-    friend_action_error: "Impossible d'effectuer cette action. Réessaie.",
-    friend_action_loading: "En cours...", no_invites: "Aucune invitation pour le moment.",
-    already_friends: "Vous êtes déjà amis.", invite_already_sent: "Invitation déjà envoyée.",
-    invite_already_received: "Cette personne t'a déjà invité.",
-    not_authenticated: "Connecte-toi pour continuer.", user_not_found: "Cet utilisateur n'existe pas.",
-    invite_not_found: "Invitation introuvable.", not_recipient: "Tu ne peux pas répondre à cette invitation.",
-    invite_not_pending: "Cette invitation n'est plus en attente.", not_sender: "Tu ne peux pas annuler cette invitation.",
-    not_friends: "Vous n'êtes pas amis.", invalid_recipient: "Destinataire invalide.",
-    social_loading: "Chargement de ta communauté...", profile_not_found: "Profil introuvable.",
-    notif_empty: "Aucune notification pour le moment.", invites_pending_count: "invitation(s) en attente",
-    post_placeholder: "Partage quelque chose avec la communauté...", post_btn: "Publier",
-    msg_empty: "Ajoute des amis dans l'onglet \"Amis\" pour pouvoir leur envoyer un message privé.",
-    msg_say_hi: "Dis bonjour 👋", conv_empty: "Aucun message pour l'instant. Dis bonjour !",
-    msg_placeholder: "Écris un message...", msg_send: "Envoyer", conv_sub: "Message privé",
-    // legal
-    legal_title: "Informations légales",
-    onb_title: "Bienvenue sur 243Kulture", onb_sub: "Rumba, histoire et culture congolaise — dans ta langue, avec ta communauté.",
-    onb_skip: "Continuer sans compte", onb_or: "ou",
-    story_section: "Kulture Stories", story_your: "Ta story", story_add: "Ajouter", story_new: "Nouvelle story", story_type_text: "Texte", story_type_photo: "Photo", story_type_video: "Vidéo",
-    story_placeholder: "Écris quelque chose...", story_publish: "Publier", story_choose_media: "Choisir un fichier",
-    story_locked: "Connecte-toi pour publier une story.", story_expires: "Disparaît dans", story_hours: "h",
-    xp_level: "Niveau", xp_pts: "XP", xp_next: "XP jusqu'au niveau suivant", xp_gained: "XP gagnés",
-    debate_title: "Débat 243", debate_sub: "Vote et donne ton avis", debate_votes: "votes", debate_your_vote: "Ton vote",
-    home_debate_title: "Débat 243", home_debate_sub: "Vote et affronte la communauté",
-    badge_discoverer: "Découvreur", badge_ambassador: "Ambassadeur 243Kulture", badge_grand: "Grand connaisseur",
-    badge_topcontrib: "Top contributeur", badge_sapeur: "Sapeur du savoir", badge_voix: "Voix de la communauté", badge_conteur: "Conteur",
-    today_title: "243Kulture du jour", today_sub: "Il se passe toujours quelque chose ici", today_badge: "Aujourd'hui",
-    today_artist_label: "Artiste du jour", today_history_label: "Ce jour-là", today_quiz_label: "Quiz du jour",
-    today_debate_label: "Débat du jour", today_cta_quiz: "Faire le quiz", today_cta_debate: "Voter",
-    today_follow: "+ Suivre", today_following: "✓ Suivi",
-    foryou_title: "Pour toi", foryou_greet: "Bonjour", foryou_follows: "Tu suis", foryou_prompt: "et voici ce qui pourrait t'intéresser aujourd'hui.",
-    foryou_empty_title: "Découvre tes artistes", foryou_empty_sub: "Suis tes artistes préférés pour un accueil qui te ressemble.",
-    badge_streak: "Série de 7 jours", streak_label: "jours consécutifs", streak_note: "Série quotidienne synchronisée dès que Supabase est configuré (RPC bump_daily_streak).",
-    create_title: "Créer", create_story: "Story", create_story_sub: "Photo, vidéo ou texte — visible 24h", create_post: "Publication", create_post_sub: "Partage un message avec la communauté",
-    create_locked: "Connecte-toi pour créer du contenu.",
-    artists_title: "Nos artistes", artists_sub: "Découvre et suis tes artistes préférés", see_all_artists: "Voir tous les artistes",
-    artist_bio_label: "Biographie", artist_fact_label: "Saviez-vous que...", artist_albums_label: "Discographie", artist_content_label: "Contenus liés",
-    artist_follow: "+ Suivre", artist_following: "✓ Suivi",
-    events_title: "Événements", events_sub: "Concerts, festivals et rencontres", events_going: "y vont", events_going_btn: "J'y vais",
-    events_going_active: "✓ J'y vais", events_see_link: "Voir le lien ↗", home_events_title: "Événements à venir", home_events_sub: "Concerts et rencontres de la diaspora",
-    timeline_title: "L'Histoire", timeline_sub: "Traverse les grandes époques de la culture congolaise",
-    collections_title: "Collections 243Kulture", collections_sub: "Explore par thème", collections_progress: "contenus découverts", collections_done: "🏆 Collection terminée",
-    col_legends: "Les artistes incontournables", col_golden: "L'âge d'or de la rumba", col_dances: "Les grandes danses", col_wenge: "L'histoire Wenge",
-    explore_title: "Explorer", explore_timeline: "Histoire", explore_collections: "Collections", explore_surprise: "Surprends-moi",
-    trending_label: "Tendance dans la communauté", trending_going: "y vont déjà",
-  },
-  ln: {
-    appname: "243Kulture", apptag: "Rumba • Lisolo • Ba Coutumes",
-    nav_home: "Ndako", nav_pod: "Podcasts", nav_discover: "Luka", nav_art: "Ba lisolo", nav_fav: "Balingami", nav_comm: "Lisanga", nav_prof: "Profil",
-    home_follow: "Landa ba artiste na yo", home_history: "Mokolo oyo na lisolo", home_quiz_title: "Quiz ya lisano ya Congo",
-    home_quiz_sub: "Meka boyebi na yo mpe zwa badge", home_yt: "Ba épisode ya sika na YouTube", home_yt_sub: "243Kulture • Talá na YouTube ↗",
-    home_trending: "Oyo elingami mingi", home_community_title: "Kota na lisanga ya 243Kulture", home_community_sub: "TikTok, Instagram, YouTube — diaspora ezali awa",
-    home_article_bit: "Rumba, bomengo ya UNESCO", home_article_bis: "Lisolo ya sika ya 243Kulture",
-    hero_tag_une: "LIKAMBO YA LELO", hero_une_title: "Fally Ipupa - Stade de France", hero_une_sub: "Concert mobimba • Kota na kati ya ba fans na live",
-    hero_billets: "Ba tike ↗", hero_event: "Talá likambo ↗",
-    pod_title: "Podcasts & Ba Live", pod_sub: "Ba concert nyonso na ba interview", pod_all: "Nyonso", pod_live: "Live", pod_backstage: "Coulisses", pod_playlist: "Playlist",
-    pod_empty: "Eloko moko te na catégorie oyo", pod_yt_section: "Chaîne YouTube 243Kulture", pod_concerts_section: "Ba concert na ba coulisses",
-    player_title: "Kotala", player_back: "← Zonga", player_fav: "Oyo nalingi", player_share: "Kabola",
-    player_watch: "▶️ Kotala", player_listen: "🎧 Koyoka na esika ya nse",
-    player_note1: "Ba vues na ba écoutes ezali kotangama mbala moko na chaîne", player_note1b: "YouTube 243Kulture",
-    player_note2: "Bongisa lecteur na iframe ya solo ya YouTube (ID ya vidéo) mpo na kokangisa lecteur ya solo.",
-    art_title: "Ba lisolo", art_sub: "Lisolo na coutume ya Congo", art_insta: "Na Instagram",
-    art_insta_placeholder: "📷 Embed Instagram — kokangisama na script ya solo embed.js libanda ya sandbox artifact",
-    art_our_articles: "Ba lisolo na biso", art_back: "← Zonga na ba lisolo",
-    social_title: "Ba Réseaux na biso", social_sub: "Zwa biso bisika nyonso", social_back: "← Zonga na profil",
-    social_p1: "Lisanga ya 243Kulture ezali kozela yo", social_p2: "Kota na kati ya ba fans ya rumba na lisolo ya Congo",
-    social_note: "⚠️ Bongisa ba lien na ba identifiant ya solo ya 243Kulture liboso ya kobimisa.",
-    search_title: "Koluka", search_sub: "Ba artiste, ba concert, ba lisolo", search_placeholder: "Ndakisa: Fally Ipupa, rumba, UNESCO...",
-    search_empty: "Koma kombo ya artiste, liloba to titre ya lisolo", search_noresult: "Eloko moko te mpo na",
-    favtitle: "Ba oyo nalingi", favtag: "Ba podcast na ba lisolo ebombami",
-    fav_empty1: "Eloko moko te mpo na sikoyo.", fav_empty2: "Fina motema likolo ya podcast to lisolo mpo na kozwa yango awa.",
-    profiltitle: "Profil", profiltag: "Ba paramètre na yo", profile_guest: "Mopaya", profile_notconnected: "Okoti te", profile_connected: "Okoti na",
-    profile_logout: "Kobima", profile_fan: "Molingi ya rumba", profile_member: "Moto ya lisanga ya 243Kulture",
-    sec_connexion: "Kokota", connexion_note: "Kota mpo na kozwa ba favoris mpe koyamba ba avis oyo ekomisami mpo na yo.",
-    btn_google: "Kokoba na Google", btn_meta: "Kokoba na Meta", btn_tiktok: "Kokoba na TikTok",
-    btn_signup: "Sala compte", btn_login: "Kota", auth_create_title: "Sala compte na yo", auth_have_account: "Nazali na compte déjà", auth_connecting: "Connection…", auth_recover_title: "Zwa lisusu compte",
-    oauth_redirecting: "Kokende na Google…", oauth_error: "Kokota na Google esuki. Meka lisusu.", oauth_provider_disabled: "Google ezali encore te na projet oyo. Tya provider na Supabase.", oauth_cancelled: "Kokota na Google esili.",
-    auth_mock_note: "Ndakisa: bouton ya solo ekosenga OAuth ya plateforme moko na moko (clés API + backend) liboso ya kobimisa.",
-    sec_community: "Lisanga na ngai", my_friends: "Balingami na ngai ya 243Kulture", friends_count_sub: "molingami/balingami • Luka ba fans",
-    sec_followed: "Ba artiste oyo nalandaka", sec_badges: "Ba badge na ngai",
-    sec_notifs: "Ba avis", notif_toggle_lab: "Fungola ba avis", notif_toggle_sub: "Ba live ya sika, ba lisolo na ba concert",
-    notif_see: "Talá ba avis na ngai", notif_see_sub: "Histoire ya ba alerte",
-    sec_lang: "Monoko", lang_note: "Traduction esalelamaka na interface (menu, ba titre). Ba lisolo na ba vidéo etikalaka na monoko na yango ya ebandeli.",
-    sec_reseaux: "Ba réseaux", social_card_title: "Ba réseaux sociaux na biso", social_card_sub: "YouTube, TikTok, Instagram",
-    notif_title: "Ba avis",
-    quiz_title: "Quiz ya lisano", quiz_sub: "Rumba na lisolo ya Congo", quiz_next: "Motuna oyo elandi", quiz_score: "Talá score na ngai",
-    quiz_result_badge: "Badge ezwami :", quiz_replay: "Zongela lisano", quiz_score_of: "biyano ya solo",
-    badge1: "Moyebi ya rumba", badge2: "Molingami ya boyebi", badge3: "Mobandeli ya mposa",
-    comm_title: "Lisanga na ngai", comm_sub: "Balingami, makomi na ba messages", comm_locked: "Kota (Google, Meta to TikTok) na profil na yo mpo na kokota na lisanga.",
-    tab_amis: "Balingami", tab_feed: "Makomi", tab_messages: "Ba messages",
-    user_search_placeholder: "Luka moto na kombo...", searching: "Koluka...", no_users_found: "Moto moko te ezwami.",
-    user_search_hint: "Luka moto na kombo mpo na kobakisa ye lokola molingami.",
-    friends_have: "Ozali na", friends_on_app: "molingami/balingami na 243Kulture.",
-    add_friend: "+ Bakisa", added_friend: "✓ Molingami",
-    invite_friend: "Benga", invite_sent: "Invitation etindami", invite_received: "Invitation ezwami",
-    invite_accept: "Ndima", invite_decline: "Boya", invite_cancel: "Longola", invite_remove: "Longola",
-    invites_in: "Ba invitation oyo nazwi", invites_out: "Ba invitation oyo natindi",
-    relation_friends: "Bozali balingami", relation_none: "Bozali balingami te",
-    public_profile: "Profil", view_profile: "Tala profil",
-    friend_action_error: "Esalemi malamu te. Meka lisusu.",
-    friend_action_loading: "Ezali kosala...", no_invites: "Invitation moko te sikoyo.",
-    already_friends: "Bozali deja balingami.", invite_already_sent: "Invitation etindami deja.",
-    invite_already_received: "Moto oyo abengi yo deja.",
-    not_authenticated: "Kota liboso.", user_not_found: "Moto oyo azali te.",
-    invite_not_found: "Invitation ezwami te.", not_recipient: "Okoki koyanola invitation oyo te.",
-    invite_not_pending: "Invitation oyo ezali lisusu te.", not_sender: "Okoki kolongola invitation oyo te.",
-    not_friends: "Bozali balingami te.", invalid_recipient: "Moto oyo ezali malamu te.",
-    social_loading: "Lisanga ezali kokota...", profile_not_found: "Profil ezwami te.",
-    notif_empty: "Avis moko te sikoyo.", invites_pending_count: "invitation(s) ezali kozela",
-    post_placeholder: "Kabola likambo na lisanga...", post_btn: "Komisa",
-    msg_empty: "Bakisa balingami na tab \"Balingami\" mpo okoka kotindela bango message.",
-    msg_say_hi: "Loba mbote 👋", conv_empty: "Message moko te sikoyo. Loba mbote !",
-    msg_placeholder: "Koma message...", msg_send: "Tinda", conv_sub: "Message ya moto na moto",
-    legal_title: "Ba nsango ya mibeko",
-    onb_title: "Boyei malamu na 243Kulture", onb_sub: "Rumba, lisolo na coutume ya Congo — na monoko na yo, na lisanga na yo.",
-    onb_skip: "Kokoba kozanga compte", onb_or: "to",
-    story_section: "Kulture Stories", story_your: "Story na yo", story_add: "Bakisa", story_new: "Story ya sika", story_type_text: "Makomi", story_type_photo: "Foto", story_type_video: "Vidéo",
-    story_placeholder: "Koma eloko...", story_publish: "Komisa", story_choose_media: "Pona fichier",
-    story_locked: "Kota mpo na kobimisa story.", story_expires: "Ekolimwa na", story_hours: "h",
-    xp_level: "Niveau", xp_pts: "XP", xp_next: "XP tii na niveau elandi", xp_gained: "XP ezwami",
-    debate_title: "Débat 243", debate_sub: "Pona mpe pesa makanisi na yo", debate_votes: "ba vote", debate_your_vote: "Vote na yo",
-    home_debate_title: "Débat 243", home_debate_sub: "Pona mpe kutana na lisanga",
-    badge_discoverer: "Moluki", badge_ambassador: "Ambassadeur 243Kulture", badge_grand: "Moyebi monene",
-    badge_topcontrib: "Top contributeur", badge_sapeur: "Sapeur ya boyebi", badge_voix: "Mongongo ya lisanga", badge_conteur: "Moteller",
-    today_title: "243Kulture ya lelo", today_sub: "Likambo ezalaka ntango nyonso awa", today_badge: "Lelo",
-    today_artist_label: "Artiste ya lelo", today_history_label: "Mokolo oyo", today_quiz_label: "Quiz ya lelo",
-    today_debate_label: "Débat ya lelo", today_cta_quiz: "Sala quiz", today_cta_debate: "Pona",
-    today_follow: "+ Landa", today_following: "✓ Elandami",
-    foryou_title: "Mpo na yo", foryou_greet: "Mbote", foryou_follows: "Olandi", foryou_prompt: "mpe tala oyo ekoki kosepelisa yo lelo.",
-    foryou_empty_title: "Luka ba artiste na yo", foryou_empty_sub: "Landa ba artiste oyo olingaka mpo na ndako oyo ekokani na yo.",
-    badge_streak: "Série ya mikolo 7", streak_label: "mikolo oyo elandani", streak_note: "Série ya mokolo na mokolo esynchronisami soki Supabase eza (RPC bump_daily_streak).",
-    create_title: "Kela", create_story: "Story", create_story_sub: "Foto, vidéo to makomi — emonanaka ngonga 24", create_post: "Komisa", create_post_sub: "Kabola liloba na lisanga",
-    create_locked: "Kota mpo na kokela contenu.",
-    artists_title: "Ba artiste na biso", artists_sub: "Luka mpe landa ba artiste oyo olingaka", see_all_artists: "Talá ba artiste nyonso",
-    artist_bio_label: "Lisolo na ye", artist_fact_label: "Oyebaki ete...", artist_albums_label: "Ba album", artist_content_label: "Ba contenu ekangani",
-    artist_follow: "+ Landa", artist_following: "✓ Elandami",
-    events_title: "Ba likambo", events_sub: "Ba concert, ba festival na bokutani", events_going: "bakeyi",
-    events_going_btn: "Nakeyi", events_going_active: "✓ Nakeyi", events_see_link: "Talá lien ↗", home_events_title: "Ba likambo ekoya", home_events_sub: "Ba concert na bokutani ya diaspora",
-    timeline_title: "Histoire", timeline_sub: "Leka na ba tango minene ya culture ya Congo",
-    collections_title: "Ba Collection ya 243Kulture", collections_sub: "Luka na nzela ya thème", collections_progress: "ba contenu ezwami", collections_done: "🏆 Collection esili",
-    col_legends: "Ba artiste ya minene", col_golden: "Ntango ya wolo ya rumba", col_dances: "Ba kobina minene", col_wenge: "Histoire ya Wenge",
-    explore_title: "Luka", explore_timeline: "Histoire", explore_collections: "Collections", explore_surprise: "Kamwisa ngai",
-    trending_label: "Oyo elingami na lisanga", trending_going: "bakeyi wana",
-  },
-  en: {
-    appname: "243Kulture", apptag: "Rumba • History • Culture",
-    nav_home: "Home", nav_pod: "Podcasts", nav_discover: "Discover", nav_art: "Articles", nav_fav: "Favorites", nav_comm: "Community", nav_prof: "Profile",
-    home_follow: "Follow your artists", home_history: "This day in history", home_quiz_title: "Congolese culture quiz",
-    home_quiz_sub: "Test your knowledge and unlock a badge", home_yt: "Latest YouTube episodes", home_yt_sub: "243Kulture • Watch on YouTube ↗",
-    home_trending: "Trending", home_community_title: "Join the 243Kulture community", home_community_sub: "TikTok, Instagram, YouTube — the diaspora meets here",
-    home_article_bit: "Rumba, UNESCO heritage", home_article_bis: "Latest 243Kulture article",
-    hero_tag_une: "FEATURED", hero_une_title: "Fally Ipupa - Stade de France", hero_une_sub: "Full concert • Join thousands of fans live",
-    hero_billets: "Tickets ↗", hero_event: "See event ↗",
-    pod_title: "Podcasts & Lives", pod_sub: "All concerts and interviews", pod_all: "All", pod_live: "Live", pod_backstage: "Backstage", pod_playlist: "Playlist",
-    pod_empty: "No content in this category", pod_yt_section: "243Kulture YouTube channel", pod_concerts_section: "Concerts & backstage",
-    player_title: "Now playing", player_back: "← Back", player_fav: "Favorite", player_share: "Share",
-    player_watch: "▶️ Watch", player_listen: "🎧 Listen in background",
-    player_note1: "Views and listens are counted directly on the", player_note1b: "YouTube 243Kulture channel",
-    player_note2: "Replace the player placeholder with a real YouTube iframe (video ID) to connect the real player.",
-    art_title: "Articles", art_sub: "Congolese history & culture", art_insta: "On Instagram",
-    art_insta_placeholder: "📷 Instagram embed — to connect via the official embed.js script outside the artifact sandbox",
-    art_our_articles: "Our articles", art_back: "← Back to articles",
-    social_title: "Our Socials", social_sub: "Find us everywhere", social_back: "← Back to profile",
-    social_p1: "The 243Kulture community is waiting for you", social_p2: "Join thousands of rumba and Congolese history fans",
-    social_note: "⚠️ Replace the links with the real 243Kulture handles before going live.",
-    search_title: "Search", search_sub: "Artists, concerts, articles", search_placeholder: "e.g. Fally Ipupa, rumba, UNESCO...",
-    search_empty: "Type an artist name, keyword or article title", search_noresult: "No results for",
-    favtitle: "My favorites", favtag: "Saved podcasts and articles",
-    fav_empty1: "No favorites yet.", fav_empty2: "Tap the heart on a podcast or article to find it here.",
-    profiltitle: "Profile", profiltag: "Your 243Kulture settings", profile_guest: "Guest", profile_notconnected: "Not connected", profile_connected: "Connected with",
-    profile_logout: "Log out", profile_fan: "Rumba fan", profile_member: "243Kulture community member",
-    sec_connexion: "Sign in", connexion_note: "Sign in to find your favorites and get personalized notifications.",
-    btn_google: "Continue with Google", btn_meta: "Continue with Meta", btn_tiktok: "Continue with TikTok",
-    btn_signup: "Create an account", btn_login: "Sign in", auth_create_title: "Create your account", auth_have_account: "I already have an account", auth_connecting: "Signing in…", auth_recover_title: "Recover your account",
-    oauth_redirecting: "Redirecting to Google…", oauth_error: "Google sign-in failed. Please try again.", oauth_provider_disabled: "Google is not enabled on this project yet. Configure the provider in Supabase.", oauth_cancelled: "Google sign-in was cancelled.",
-    auth_mock_note: "Mockup: the real button will require OAuth integration for each platform (API keys + backend) before launch.",
-    sec_community: "My community", my_friends: "My 243Kulture friends", friends_count_sub: "friend(s) • Find fans",
-    sec_followed: "Followed artists", sec_badges: "My badges",
-    sec_notifs: "Notifications", notif_toggle_lab: "Enable notifications", notif_toggle_sub: "New lives, articles and concerts",
-    notif_see: "See my notifications", notif_see_sub: "Alert history",
-    sec_lang: "Language", lang_note: "Translation applies to the interface (menus, titles). Articles and videos stay in their original language.",
-    sec_reseaux: "Socials", social_card_title: "Our social networks", social_card_sub: "YouTube, TikTok, Instagram",
-    notif_title: "Notifications",
-    quiz_title: "Culture quiz", quiz_sub: "Rumba & Congolese history", quiz_next: "Next question", quiz_score: "See my score",
-    quiz_result_badge: "Badge unlocked:", quiz_replay: "Play again", quiz_score_of: "correct answers",
-    badge1: "Rumba connoisseur", badge2: "Informed fan", badge3: "Curious beginner",
-    comm_title: "My community", comm_sub: "Friends, posts & messages", comm_locked: "Sign in (Google, Meta or TikTok) from your profile to join the community.",
-    tab_amis: "Friends", tab_feed: "Posts", tab_messages: "Messages",
-    user_search_placeholder: "Search a user by name...", searching: "Searching...", no_users_found: "No users found.",
-    user_search_hint: "Search someone by name to add them as a friend.",
-    friends_have: "You have", friends_on_app: "friend(s) on 243Kulture.",
-    add_friend: "+ Add", added_friend: "✓ Friend",
-    invite_friend: "Invite", invite_sent: "Invitation sent", invite_received: "Invitation received",
-    invite_accept: "Accept", invite_decline: "Decline", invite_cancel: "Cancel", invite_remove: "Remove",
-    invites_in: "Incoming invitations", invites_out: "Sent invitations",
-    relation_friends: "You are friends", relation_none: "Not friends yet",
-    public_profile: "Profile", view_profile: "View profile",
-    friend_action_error: "This action could not be completed. Try again.",
-    friend_action_loading: "Please wait...", no_invites: "No invitations right now.",
-    already_friends: "You are already friends.", invite_already_sent: "Invitation already sent.",
-    invite_already_received: "This person already invited you.",
-    not_authenticated: "Sign in to continue.", user_not_found: "This user does not exist.",
-    invite_not_found: "Invitation not found.", not_recipient: "You cannot respond to this invitation.",
-    invite_not_pending: "This invitation is no longer pending.", not_sender: "You cannot cancel this invitation.",
-    not_friends: "You are not friends.", invalid_recipient: "Invalid recipient.",
-    social_loading: "Loading your community...", profile_not_found: "Profile not found.",
-    notif_empty: "No notifications right now.", invites_pending_count: "pending invitation(s)",
-    post_placeholder: "Share something with the community...", post_btn: "Post",
-    msg_empty: "Add friends in the \"Friends\" tab to send them a private message.",
-    msg_say_hi: "Say hi 👋", conv_empty: "No messages yet. Say hi!",
-    msg_placeholder: "Write a message...", msg_send: "Send", conv_sub: "Private message",
-    legal_title: "Legal information",
-    onb_title: "Welcome to 243Kulture", onb_sub: "Rumba, history and Congolese culture — in your language, with your community.",
-    onb_skip: "Continue without an account", onb_or: "or",
-    story_section: "Kulture Stories", story_your: "Your story", story_add: "Add", story_new: "New story", story_type_text: "Text", story_type_photo: "Photo", story_type_video: "Video",
-    story_placeholder: "Write something...", story_publish: "Post", story_choose_media: "Choose a file",
-    story_locked: "Sign in to post a story.", story_expires: "Disappears in", story_hours: "h",
-    xp_level: "Level", xp_pts: "XP", xp_next: "XP to next level", xp_gained: "XP earned",
-    debate_title: "Debate 243", debate_sub: "Vote and share your opinion", debate_votes: "votes", debate_your_vote: "Your vote",
-    home_debate_title: "Debate 243", home_debate_sub: "Vote and face the community",
-    badge_discoverer: "Discoverer", badge_ambassador: "243Kulture Ambassador", badge_grand: "Grand Connoisseur",
-    badge_topcontrib: "Top Contributor", badge_sapeur: "Knowledge Sapeur", badge_voix: "Voice of the Community", badge_conteur: "Storyteller",
-    today_title: "243Kulture Today", today_sub: "There's always something happening here", today_badge: "Today",
-    today_artist_label: "Artist of the day", today_history_label: "On this day", today_quiz_label: "Quiz of the day",
-    today_debate_label: "Debate of the day", today_cta_quiz: "Take the quiz", today_cta_debate: "Vote",
-    today_follow: "+ Follow", today_following: "✓ Following",
-    foryou_title: "For you", foryou_greet: "Hi", foryou_follows: "You follow", foryou_prompt: "and here's what might interest you today.",
-    foryou_empty_title: "Discover your artists", foryou_empty_sub: "Follow your favorite artists for a home feed that fits you.",
-    badge_streak: "7-Day Streak", streak_label: "day streak", streak_note: "Daily streak syncs when Supabase is configured (bump_daily_streak RPC).",
-    create_title: "Create", create_story: "Story", create_story_sub: "Photo, video or text — visible for 24h", create_post: "Post", create_post_sub: "Share a message with the community",
-    create_locked: "Sign in to create content.",
-    artists_title: "Our artists", artists_sub: "Discover and follow your favorite artists", see_all_artists: "See all artists",
-    artist_bio_label: "Biography", artist_fact_label: "Did you know...", artist_albums_label: "Discography", artist_content_label: "Related content",
-    artist_follow: "+ Follow", artist_following: "✓ Following",
-    events_title: "Events", events_sub: "Concerts, festivals and meetups", events_going: "going", events_going_btn: "I'm going",
-    events_going_active: "✓ Going", events_see_link: "See link ↗", home_events_title: "Upcoming events", home_events_sub: "Diaspora concerts and meetups",
-    timeline_title: "History", timeline_sub: "Journey through Congolese culture's major eras",
-    collections_title: "243Kulture Collections", collections_sub: "Explore by theme", collections_progress: "content discovered", collections_done: "🏆 Collection completed",
-    col_legends: "Essential artists", col_golden: "The golden age of rumba", col_dances: "Iconic dances", col_wenge: "The Wenge story",
-    explore_title: "Explore", explore_timeline: "History", explore_collections: "Collections", explore_surprise: "Surprise me",
-    trending_label: "Trending in the community", trending_going: "already going",
-  },
-  nl: {
-    appname: "243Kulture", apptag: "Rumba • Geschiedenis • Cultuur",
-    nav_home: "Start", nav_pod: "Podcasts", nav_discover: "Ontdekken", nav_art: "Artikelen", nav_fav: "Favorieten", nav_comm: "Community", nav_prof: "Profiel",
-    home_follow: "Volg je artiesten", home_history: "Vandaag in de geschiedenis", home_quiz_title: "Congolese cultuurquiz",
-    home_quiz_sub: "Test je kennis en ontgrendel een badge", home_yt: "Laatste YouTube-afleveringen", home_yt_sub: "243Kulture • Bekijk op YouTube ↗",
-    home_trending: "Trending", home_community_title: "Word lid van de 243Kulture-community", home_community_sub: "TikTok, Instagram, YouTube — de diaspora komt hier samen",
-    home_article_bit: "Rumba, UNESCO-erfgoed", home_article_bis: "Laatste 243Kulture-artikel",
-    hero_tag_une: "UITGELICHT", hero_une_title: "Fally Ipupa - Stade de France", hero_une_sub: "Volledig concert • Doe live mee met duizenden fans",
-    hero_billets: "Tickets ↗", hero_event: "Bekijk evenement ↗",
-    pod_title: "Podcasts & Lives", pod_sub: "Alle concerten en interviews", pod_all: "Alles", pod_live: "Live", pod_backstage: "Backstage", pod_playlist: "Playlist",
-    pod_empty: "Geen inhoud in deze categorie", pod_yt_section: "243Kulture YouTube-kanaal", pod_concerts_section: "Concerten & backstage",
-    player_title: "Nu aan het spelen", player_back: "← Terug", player_fav: "Favoriet", player_share: "Delen",
-    player_watch: "▶️ Kijken", player_listen: "🎧 Op de achtergrond luisteren",
-    player_note1: "Weergaven en luisterbeurten worden rechtstreeks geteld op het", player_note1b: "YouTube-kanaal 243Kulture",
-    player_note2: "Vervang de spelertekst door een echte YouTube-iframe (video-ID) om de echte speler aan te sluiten.",
-    art_title: "Artikelen", art_sub: "Congolese geschiedenis & cultuur", art_insta: "Op Instagram",
-    art_insta_placeholder: "📷 Instagram-embed — aan te sluiten via het officiële embed.js-script buiten de artifact-sandbox",
-    art_our_articles: "Onze artikelen", art_back: "← Terug naar artikelen",
-    social_title: "Onze sociale media", social_sub: "Vind ons overal", social_back: "← Terug naar profiel",
-    social_p1: "De 243Kulture-community wacht op je", social_p2: "Sluit je aan bij duizenden fans van rumba en Congolese geschiedenis",
-    social_note: "⚠️ Vervang de links door de echte 243Kulture-accounts vóór de lancering.",
-    search_title: "Zoeken", search_sub: "Artiesten, concerten, artikelen", search_placeholder: "Bijv. Fally Ipupa, rumba, UNESCO...",
-    search_empty: "Typ een artiestennaam, trefwoord of artikeltitel", search_noresult: "Geen resultaten voor",
-    favtitle: "Mijn favorieten", favtag: "Opgeslagen podcasts en artikelen",
-    fav_empty1: "Nog geen favorieten.", fav_empty2: "Tik op het hartje bij een podcast of artikel om het hier terug te vinden.",
-    profiltitle: "Profiel", profiltag: "Jouw 243Kulture-instellingen", profile_guest: "Gast", profile_notconnected: "Niet verbonden", profile_connected: "Verbonden met",
-    profile_logout: "Uitloggen", profile_fan: "Rumba-fan", profile_member: "Lid van de 243Kulture-community",
-    sec_connexion: "Inloggen", connexion_note: "Log in om je favorieten terug te vinden en gepersonaliseerde meldingen te ontvangen.",
-    btn_google: "Doorgaan met Google", btn_meta: "Doorgaan met Meta", btn_tiktok: "Doorgaan met TikTok",
-    btn_signup: "Account aanmaken", btn_login: "Inloggen", auth_create_title: "Maak je account", auth_have_account: "Ik heb al een account", auth_connecting: "Bezig…", auth_recover_title: "Account herstellen",
-    oauth_redirecting: "Doorverwijzen naar Google…", oauth_error: "Google-aanmelding mislukt. Probeer opnieuw.", oauth_provider_disabled: "Google is nog niet geactiveerd op dit project. Configureer de provider in Supabase.", oauth_cancelled: "Google-aanmelding geannuleerd.",
-    auth_mock_note: "Mockup: de echte knop vereist OAuth-integratie per platform (API-sleutels + backend) vóór de lancering.",
-    sec_community: "Mijn community", my_friends: "Mijn 243Kulture-vrienden", friends_count_sub: "vriend(en) • Vind fans",
-    sec_followed: "Gevolgde artiesten", sec_badges: "Mijn badges",
-    sec_notifs: "Meldingen", notif_toggle_lab: "Meldingen inschakelen", notif_toggle_sub: "Nieuwe lives, artikelen en concerten",
-    notif_see: "Mijn meldingen bekijken", notif_see_sub: "Meldingengeschiedenis",
-    sec_lang: "Taal", lang_note: "Vertaling geldt voor de interface (menu's, titels). Artikelen en video's blijven in hun oorspronkelijke taal.",
-    sec_reseaux: "Sociale media", social_card_title: "Onze sociale netwerken", social_card_sub: "YouTube, TikTok, Instagram",
-    notif_title: "Meldingen",
-    quiz_title: "Cultuurquiz", quiz_sub: "Rumba & Congolese geschiedenis", quiz_next: "Volgende vraag", quiz_score: "Bekijk mijn score",
-    quiz_result_badge: "Badge ontgrendeld:", quiz_replay: "Opnieuw spelen", quiz_score_of: "goede antwoorden",
-    badge1: "Rumba-kenner", badge2: "Geïnformeerde fan", badge3: "Nieuwsgierige beginner",
-    comm_title: "Mijn community", comm_sub: "Vrienden, berichten & privéberichten", comm_locked: "Log in (Google, Meta of TikTok) via je profiel om lid te worden van de community.",
-    tab_amis: "Vrienden", tab_feed: "Berichten", tab_messages: "Privéberichten",
-    user_search_placeholder: "Zoek een gebruiker op naam...", searching: "Zoeken...", no_users_found: "Geen gebruikers gevonden.",
-    user_search_hint: "Zoek iemand op naam om als vriend toe te voegen.",
-    friends_have: "Je hebt", friends_on_app: "vriend(en) op 243Kulture.",
-    add_friend: "+ Toevoegen", added_friend: "✓ Vriend",
-    invite_friend: "Uitnodigen", invite_sent: "Uitnodiging verzonden", invite_received: "Uitnodiging ontvangen",
-    invite_accept: "Accepteren", invite_decline: "Weigeren", invite_cancel: "Annuleren", invite_remove: "Verwijderen",
-    invites_in: "Ontvangen uitnodigingen", invites_out: "Verzonden uitnodigingen",
-    relation_friends: "Jullie zijn vrienden", relation_none: "Nog geen vrienden",
-    public_profile: "Profiel", view_profile: "Bekijk profiel",
-    friend_action_error: "Deze actie is mislukt. Probeer opnieuw.",
-    friend_action_loading: "Even geduld...", no_invites: "Geen uitnodigingen op dit moment.",
-    already_friends: "Jullie zijn al vrienden.", invite_already_sent: "Uitnodiging al verzonden.",
-    invite_already_received: "Deze persoon heeft je al uitgenodigd.",
-    not_authenticated: "Log in om verder te gaan.", user_not_found: "Deze gebruiker bestaat niet.",
-    invite_not_found: "Uitnodiging niet gevonden.", not_recipient: "Je kunt niet op deze uitnodiging reageren.",
-    invite_not_pending: "Deze uitnodiging is niet meer in behandeling.", not_sender: "Je kunt deze uitnodiging niet annuleren.",
-    not_friends: "Jullie zijn geen vrienden.", invalid_recipient: "Ongeldige ontvanger.",
-    social_loading: "Je community wordt geladen...", profile_not_found: "Profiel niet gevonden.",
-    notif_empty: "Geen meldingen op dit moment.", invites_pending_count: "openstaande uitnodiging(en)",
-    post_placeholder: "Deel iets met de community...", post_btn: "Plaatsen",
-    msg_empty: "Voeg vrienden toe via het tabblad \"Vrienden\" om ze een privébericht te sturen.",
-    msg_say_hi: "Zeg hallo 👋", conv_empty: "Nog geen berichten. Zeg hallo!",
-    msg_placeholder: "Schrijf een bericht...", msg_send: "Verstuur", conv_sub: "Privébericht",
-    legal_title: "Juridische informatie",
-    onb_title: "Welkom bij 243Kulture", onb_sub: "Rumba, geschiedenis en Congolese cultuur — in jouw taal, met jouw community.",
-    onb_skip: "Doorgaan zonder account", onb_or: "of",
-    story_section: "Kulture Stories", story_your: "Jouw story", story_add: "Toevoegen", story_new: "Nieuwe story", story_type_text: "Tekst", story_type_photo: "Foto", story_type_video: "Video",
-    story_placeholder: "Schrijf iets...", story_publish: "Plaatsen", story_choose_media: "Bestand kiezen",
-    story_locked: "Log in om een story te plaatsen.", story_expires: "Verdwijnt over", story_hours: "u",
-    xp_level: "Niveau", xp_pts: "XP", xp_next: "XP tot volgend niveau", xp_gained: "XP verdiend",
-    debate_title: "Debat 243", debate_sub: "Stem en geef je mening", debate_votes: "stemmen", debate_your_vote: "Jouw stem",
-    home_debate_title: "Debat 243", home_debate_sub: "Stem en daag de community uit",
-    badge_discoverer: "Ontdekker", badge_ambassador: "243Kulture Ambassadeur", badge_grand: "Grote Kenner",
-    badge_topcontrib: "Topbijdrager", badge_sapeur: "Kennis-Sapeur", badge_voix: "Stem van de Community", badge_conteur: "Verteller",
-    today_title: "243Kulture Vandaag", today_sub: "Er gebeurt hier altijd iets nieuws", today_badge: "Vandaag",
-    today_artist_label: "Artiest van de dag", today_history_label: "Op deze dag", today_quiz_label: "Quiz van de dag",
-    today_debate_label: "Debat van de dag", today_cta_quiz: "Doe de quiz", today_cta_debate: "Stem",
-    today_follow: "+ Volgen", today_following: "✓ Gevolgd",
-    foryou_title: "Voor jou", foryou_greet: "Hallo", foryou_follows: "Je volgt", foryou_prompt: "en dit is wat je vandaag zou kunnen interesseren.",
-    foryou_empty_title: "Ontdek je artiesten", foryou_empty_sub: "Volg je favoriete artiesten voor een startpagina die bij jou past.",
-    badge_streak: "7-Dagen Streak", streak_label: "dagen op rij", streak_note: "Dagelijkse streak synchroniseert wanneer Supabase is geconfigureerd (RPC bump_daily_streak).",
-    create_title: "Maken", create_story: "Story", create_story_sub: "Foto, video of tekst — 24u zichtbaar", create_post: "Bericht", create_post_sub: "Deel iets met de community",
-    create_locked: "Log in om content te maken.",
-    artists_title: "Onze artiesten", artists_sub: "Ontdek en volg je favoriete artiesten", see_all_artists: "Alle artiesten bekijken",
-    artist_bio_label: "Biografie", artist_fact_label: "Wist je dat...", artist_albums_label: "Discografie", artist_content_label: "Gerelateerde inhoud",
-    artist_follow: "+ Volgen", artist_following: "✓ Gevolgd",
-    events_title: "Evenementen", events_sub: "Concerten, festivals en ontmoetingen", events_going: "gaan", events_going_btn: "Ik ga",
-    events_going_active: "✓ Ik ga", events_see_link: "Bekijk link ↗", home_events_title: "Aankomende evenementen", home_events_sub: "Concerten en ontmoetingen van de diaspora",
-    timeline_title: "Geschiedenis", timeline_sub: "Reis door de grote tijdperken van de Congolese cultuur",
-    collections_title: "243Kulture Collecties", collections_sub: "Verken per thema", collections_progress: "content ontdekt", collections_done: "🏆 Collectie voltooid",
-    col_legends: "Onmisbare artiesten", col_golden: "Het gouden tijdperk van rumba", col_dances: "Iconische dansen", col_wenge: "Het Wenge-verhaal",
-    explore_title: "Verkennen", explore_timeline: "Geschiedenis", explore_collections: "Collecties", explore_surprise: "Verras me",
-    trending_label: "Trending in de community", trending_going: "gaan al",
-  },
-};
-
-const LANG_LABELS = { fr: "Français", ln: "Lingala", en: "English", nl: "Nederlands" };
+/* I18N moved to src/i18n/*.json — import via ./i18n/index.js */
+/* LANG_LABELS imported from ./i18n/index.js */
 const COUNTRY_CODES = ["AW", "AF", "AO", "AI", "AX", "AL", "AD", "AE", "AR", "AM", "AS", "AQ", "TF", "AG", "AU", "AT", "AZ", "BI", "BE", "BJ", "BQ", "BF", "BD", "BG", "BH", "BS", "BA", "BL", "BY", "BZ", "BM", "BO", "BR", "BB", "BN", "BT", "BV", "BW", "CF", "CA", "CC", "CH", "CL", "CN", "CI", "CM", "CD", "CG", "CK", "CO", "KM", "CV", "CR", "CU", "CW", "CX", "KY", "CY", "CZ", "DE", "DJ", "DM", "DK", "DO", "DZ", "EC", "EG", "ER", "EH", "ES", "EE", "ET", "FI", "FJ", "FK", "FR", "FO", "FM", "GA", "GB", "GE", "GG", "GH", "GI", "GN", "GP", "GM", "GW", "GQ", "GR", "GD", "GL", "GT", "GF", "GU", "GY", "HK", "HM", "HN", "HR", "HT", "HU", "ID", "IM", "IN", "IO", "IE", "IR", "IQ", "IS", "IL", "IT", "JM", "JE", "JO", "JP", "KZ", "KE", "KG", "KH", "KI", "KN", "KR", "KW", "LA", "LB", "LR", "LY", "LC", "LI", "LK", "LS", "LT", "LU", "LV", "MO", "MF", "MA", "MC", "MD", "MG", "MV", "MX", "MH", "MK", "ML", "MT", "MM", "ME", "MN", "MP", "MZ", "MR", "MS", "MQ", "MU", "MW", "MY", "YT", "NA", "NC", "NE", "NF", "NG", "NI", "NU", "NL", "NO", "NP", "NR", "NZ", "OM", "PK", "PA", "PN", "PE", "PH", "PW", "PG", "PL", "PR", "KP", "PT", "PY", "PS", "PF", "QA", "RE", "RO", "RU", "RW", "SA", "SD", "SN", "SG", "GS", "SH", "SJ", "SB", "SL", "SV", "SM", "SO", "PM", "RS", "SS", "ST", "SR", "SK", "SI", "SE", "SZ", "SX", "SC", "SY", "TC", "TD", "TG", "TH", "TJ", "TK", "TM", "TL", "TO", "TT", "TN", "TR", "TV", "TW", "TZ", "UG", "UA", "UM", "UY", "US", "UZ", "VA", "VC", "VE", "VG", "VI", "VN", "VU", "WF", "WS", "YE", "ZA", "ZM", "ZW"];
 const countryFlag = (code) => code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
-const countryName = (code, lang) => { try { return new Intl.DisplayNames([lang === "ln" ? "fr" : lang], { type: "region" }).of(code) || code; } catch { return code; } };
+const countryName = (code, lang) => { try { const loc = ["fr","en","nl"].includes(lang) ? lang : "fr"; return new Intl.DisplayNames([loc], { type: "region" }).of(code) || code; } catch { return code; } };
 
 const CREATOR_CATEGORIES = ["Musique", "Podcast", "Média", "Journalisme", "Danse", "Mode", "Humour", "Cinéma", "Photographie", "Art", "Culture", "Lifestyle", "Événementiel", "Autre"];
 const CREATOR_TYPES = ["Artiste", "Créateur de contenu", "Média / Rédaction", "Photographe", "Danseur / Chorégraphe", "Humoriste", "Autre"];
@@ -1064,10 +671,15 @@ const Header = ({ title, sub, withLogo = true, icons }) => (
 
 // ---------- Main component ----------
 export default function App() {
-  const [screen, setScreen] = useState("onboarding");
+  const initialLang = (() => { try { return readStoredLang(); } catch { return null; } })();
+  const [screen, setScreen] = useState(() => (initialLang ? "termsGate" : "languagePicker"));
   const [favorites, setFavorites] = useState([]); // {id,title,sub,icon}
   const [notifDot, setNotifDot] = useState(true);
-  const [lang, setLang] = useState("fr");
+  const [lang, setLang] = useState(() => initialLang || "fr");
+  const [langDraft, setLangDraft] = useState(() => initialLang || null);
+  const [hasCurrentCgu, setHasCurrentCgu] = useState(false);
+  const [cguChecked, setCguChecked] = useState(false);
+  const [gateReady, setGateReady] = useState(false);
   const [podFilter, setPodFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [player, setPlayer] = useState(null); // {artist,title,sub,id}
@@ -1076,7 +688,8 @@ export default function App() {
   const [articleId, setArticleId] = useState("a1");
   const [heroIndex, setHeroIndex] = useState(0);
   const [user, setUser] = useState(null); // {provider} — maquette, pas de vraie auth OAuth
-  const [legalAccepted, setLegalAccepted] = useState(false);
+  const legalAccepted = cguChecked; // checkbox UI — persisted via accept_legal_document after auth
+  const setLegalAccepted = setCguChecked;
   const [authMode, setAuthMode] = useState("login"); // login | signup | reset
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -1108,7 +721,12 @@ export default function App() {
   const [debateVotes, setDebateVotes] = useState({}); // { debateId: optionIndex }
   const [debateReactions, setDebateReactions] = useState({}); // { debateId: emoji }
   const [friends, setFriends] = useState([]);
-  const [communityTab, setCommunityTab] = useState("amis"); // amis | feed | messages
+  const [communityTab, setCommunityTab] = useState("amis"); // amis | abonnements | abonnes | decouvrir | feed | messages
+  const [feedMode, setFeedMode] = useState("pourtoi"); // pourtoi | abonnements
+  const [followingUsers, setFollowingUsers] = useState([]);
+  const [followerUsers, setFollowerUsers] = useState([]);
+  const [communityProfiles, setCommunityProfiles] = useState({});
+  const [discoverPeople, setDiscoverPeople] = useState([]);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
@@ -1119,6 +737,8 @@ export default function App() {
   const [friendActionError, setFriendActionError] = useState("");
   const [viewedProfile, setViewedProfile] = useState(null);
   const [viewedProfileLoading, setViewedProfileLoading] = useState(false);
+  const [viewedProfileStats, setViewedProfileStats] = useState({ followers: 0, following: 0, posts: 0 });
+  const [viewedProfilePosts, setViewedProfilePosts] = useState([]);
   const [socialGraphLoading, setSocialGraphLoading] = useState(false);
   const searchTimerRef = useRef(null);
   const searchGenRef = useRef(0);
@@ -1161,7 +781,7 @@ export default function App() {
   const [, forceTick] = useState(0);
 
   const t = I18N[lang];
-  const tl = LEGAL_I18N[lang];
+  const tl = LEGAL_I18N[contentLang(lang)] || LEGAL_I18N.fr;
 
   // ---------- Contenu localisé selon la langue choisie ----------
   const YT_EPISODES = getYtEpisodes();
@@ -1180,15 +800,88 @@ export default function App() {
   const TIMELINE = getTimeline(lang);
   const selectedCollection = COLLECTIONS_DEFS.find((c) => c.id === selectedCollectionId);
   const selectedArtist = ARTISTS.find((a) => a.id === selectedArtistId);
-  const selectedArtistBio = selectedArtistId ? ARTIST_BIO_I18N[lang][selectedArtistId] : null;
+  const selectedArtistBio = selectedArtistId ? ARTIST_BIO_I18N[contentLang(lang)][selectedArtistId] : null;
   const levelInfo = getLevelInfo(xp, lang);
   const badgeLabel = (id) => {
     const def = BADGE_DEFS.find((b) => b.id === id);
     if (def) return t[def.key];
     return t[id] || id; // badge1/badge2/badge3 (quiz)
   };
+  const visibleFeedPosts = feedMode === "abonnements"
+    ? filterSubscriptionFeed(posts, followingUsers, user?.id)
+    : posts;
+  const followingProfiles = followingUsers.map((id) => communityProfiles[id]).filter(Boolean);
+  const followerProfiles = followerUsers.map((id) => communityProfiles[id]).filter(Boolean);
 
-  const go = (id) => setScreen(id);
+  const gate = resolveEntryGate({
+    hasLanguage: Boolean(readStoredLang()),
+    hasSession: Boolean(user?.id && !String(user.id).startsWith("demo-")),
+    hasCurrentCgu,
+    termsCheckboxAccepted: cguChecked,
+  });
+
+  const go = (id) => {
+    const redirect = redirectForGate(gate, id);
+    if (redirect) { setScreen(redirect); return; }
+    setScreen(id);
+  };
+
+  const applyLanguage = async (code) => {
+    const next = resolveLang(code);
+    if (!next) return false;
+    setLang(next);
+    persistLangLocal(next);
+    setLangDraft(next);
+    if (isSupabaseConfigured && user?.id && !String(user.id).startsWith("demo-")) {
+      await supabase.from("profiles").update({ language: next }).eq("id", user.id);
+    }
+    return true;
+  };
+
+  const persistCguAcceptance = async () => {
+    if (!isSupabaseConfigured || !user?.id || String(user.id).startsWith("demo-")) return false;
+    const { error } = await supabase.rpc("accept_legal_document", {
+      p_document_type: "cgu",
+      p_version: REQUIRED_CGU_VERSION,
+    });
+    if (error) {
+      console.warn("[accept_legal_document]", error.message);
+      setAuthMessage(error.message);
+      return false;
+    }
+    setHasCurrentCgu(true);
+    setCguChecked(true);
+    return true;
+  };
+
+  const loadCguStatus = async (userId) => {
+    if (!isSupabaseConfigured || !userId) { setHasCurrentCgu(false); return false; }
+    const { data, error } = await supabase.rpc("has_accepted_legal", {
+      p_document_type: "cgu",
+      p_version: REQUIRED_CGU_VERSION,
+    });
+    if (error) {
+      // Fallback: query history table directly
+      const { data: rows, error: qErr } = await supabase
+        .from("legal_consents")
+        .select("document_type, version")
+        .eq("user_id", userId)
+        .eq("document_type", "cgu")
+        .eq("version", REQUIRED_CGU_VERSION)
+        .limit(1);
+      if (qErr) {
+        console.warn("[has_accepted_legal]", error.message, qErr.message);
+        setHasCurrentCgu(false);
+        return false;
+      }
+      const ok = hasAcceptedRequiredVersion(rows || [], REQUIRED_CGU_VERSION);
+      setHasCurrentCgu(ok);
+      return ok;
+    }
+    const ok = Boolean(data);
+    setHasCurrentCgu(ok);
+    return ok;
+  };
 
   const toggleFav = (id, title, sub, icon) => {
     const wasFav = favorites.some((f) => f.id === id);
@@ -1255,8 +948,17 @@ export default function App() {
   // ---------- Chargement des données utilisateur au login ----------
   // Dès qu'un vrai user Supabase est connu, on récupère ses données pour
   // remplacer les états locaux (favoris, suivis, amis, XP, badges...).
+  // ---------- Route guard: language → terms → auth → app ----------
   useEffect(() => {
-    if (!isSupabaseConfigured || !user?.id) return;
+    const redirect = redirectForGate(gate, screen);
+    if (redirect && redirect !== screen) setScreen(redirect);
+  }, [gate, screen]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.id) {
+      setGateReady(true);
+      return;
+    }
     (async () => {
       const [profileRes, favRes, followRes, friendRes, badgeRes, discRes, goingRes, voteRes, debateReactRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
@@ -1278,11 +980,41 @@ export default function App() {
         setMyDisplayName(profile.display_name || "");
         setNameDraft(profile.display_name || "");
         setStreakDays(profile.streak_days || 0);
-        if (profile.language) setLang(profile.language);
+        if (profile.language) {
+          setLang(profile.language);
+          persistLangLocal(profile.language);
+        }
         if (profile.onboarding_interests) setOnboardingInterests(profile.onboarding_interests);
         if (profile.onboarding_country) setOnboardingCountry(profile.onboarding_country);
-        if (profile.onboarding_completed) go("home");
-        else go("onboardingChoice");
+        let cguOk = await loadCguStatus(user.id);
+        // Pending Google OAuth CGU accept (checkbox was required pre-redirect)
+        if (!cguOk) {
+          try {
+            const pending = sessionStorage.getItem("243kulture_pending_cgu");
+            if (pending === REQUIRED_CGU_VERSION) {
+              const { error: accErr } = await supabase.rpc("accept_legal_document", {
+                p_document_type: "cgu",
+                p_version: REQUIRED_CGU_VERSION,
+              });
+              if (!accErr) {
+                cguOk = true;
+                setHasCurrentCgu(true);
+                setCguChecked(true);
+                try { sessionStorage.removeItem("243kulture_pending_cgu"); } catch { /* ignore */ }
+              } else {
+                console.warn("[accept_legal_document oauth]", accErr.message);
+              }
+            }
+          } catch { /* ignore */ }
+        }
+        if (!cguOk) {
+          setScreen("termsGate");
+        } else if (profile.onboarding_completed) {
+          setScreen("home");
+        } else {
+          setScreen("onboardingChoice");
+        }
+        setGateReady(true);
       }
       if (favRes.data) setFavorites(favRes.data.map((f) => ({ id: f.item_id, title: f.title, sub: f.sub, icon: f.icon })));
       if (followRes.data) setFollowedArtists(followRes.data.map((f) => f.artist_id));
@@ -1311,7 +1043,16 @@ export default function App() {
     (async () => {
       const { data: postData, error: postError } = await supabase.from("posts").select("id, user_id, text, media_url, media_type, created_at, profiles(display_name, avatar_icon)").order("created_at", { ascending: false }).limit(50);
       if (!postError && postData) {
-        setPosts(postData.map((p) => ({ id: p.id, author: p.user_id === user.id ? "Toi" : (p.profiles?.display_name || "Membre"), icon: p.profiles?.avatar_icon || "🎶", time: new Date(p.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }), text: p.text || "", media_url: p.media_url || null, media_type: p.media_type || null })));
+        setPosts(postData.map((p) => ({
+          id: p.id,
+          authorId: p.user_id,
+          author: p.user_id === user.id ? "Toi" : (p.profiles?.display_name || "Membre"),
+          icon: p.profiles?.avatar_icon || "🎶",
+          time: new Date(p.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }),
+          text: p.text || "",
+          media_url: p.media_url || null,
+          media_type: p.media_type || null,
+        })));
       }
       const { data: commentData, error: commentError } = await supabase.from("post_comments").select("id, post_id, user_id, parent_id, text, created_at, profiles(display_name)").order("created_at", { ascending: true }).limit(500);
       if (!commentError && commentData) {
@@ -1393,11 +1134,15 @@ export default function App() {
 
   const handleEmailAuth = async () => {
     setAuthMessage("");
-    if (!legalAccepted) { setAuthMessage(tl.checkWarn); return; }
+    if (!readStoredLang()) { setScreen("languagePicker"); setAuthMessage(t.lang_picker_required); return; }
+    if (!canSubmitAuth({ hasLanguage: true, termsAccepted: legalAccepted })) {
+      setScreen("termsGate");
+      setAuthMessage(t.terms_must_accept);
+      return;
+    }
     if (!authEmail.trim() || authPassword.length < 6) { setAuthMessage("Entre un e-mail valide et un mot de passe d'au moins 6 caractères."); return; }
     if (!isSupabaseConfigured) {
-      setUser({ provider: "Email", id: "demo-email", email: authEmail.trim() });
-      go("onboardingChoice");
+      setAuthMessage(t.auth_backend_required);
       return;
     }
     setAuthLoading(true);
@@ -1410,7 +1155,13 @@ export default function App() {
       setAuthMessage("Compte créé. Vérifie ton e-mail pour confirmer ton inscription.");
       return;
     }
-    if (result.data.user) setUser({ provider: "Email", id: result.data.user.id, email: result.data.user.email });
+    if (result.data.user) {
+      setUser({ provider: "Email", id: result.data.user.id, email: result.data.user.email });
+      // Persist CGU right after auth (checkbox already required)
+      await supabase.rpc("accept_legal_document", { p_document_type: "cgu", p_version: REQUIRED_CGU_VERSION });
+      setHasCurrentCgu(true);
+      await supabase.from("profiles").update({ language: lang }).eq("id", result.data.user.id);
+    }
   };
 
   const sendPasswordReset = async () => {
@@ -1424,65 +1175,66 @@ export default function App() {
   };
 
   const signInWithGoogle = async () => {
-    if (!legalAccepted) { setAuthMessage(tl.checkWarn); return; }
-    if (isSupabaseConfigured) {
-      setAuthMessage("");
-      setAuthLoading(true);
-      // skipBrowserRedirect : on construit l'URL, on la sonde, puis on navigue
-      // (évite une page JSON brute si le provider Google n'est pas activé)
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin,
-          skipBrowserRedirect: true,
-          queryParams: { prompt: "select_account" },
-        },
-      });
-      if (error || !data?.url) {
-        setAuthLoading(false);
-        const msg = error?.message || t.oauth_error;
+    if (!readStoredLang()) { setScreen("languagePicker"); setAuthMessage(t.lang_picker_required); return; }
+    if (!canSubmitAuth({ hasLanguage: true, termsAccepted: legalAccepted })) {
+      setScreen("termsGate");
+      setAuthMessage(t.terms_must_accept);
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      setAuthMessage(t.auth_backend_required);
+      return;
+    }
+    setAuthMessage("");
+    setAuthLoading(true);
+    try { sessionStorage.setItem("243kulture_pending_cgu", REQUIRED_CGU_VERSION); } catch { /* ignore */ }
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+        skipBrowserRedirect: true,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    if (error || !data?.url) {
+      setAuthLoading(false);
+      const msg = error?.message || t.oauth_error;
+      const disabled = /not enabled|unsupported provider/i.test(msg);
+      setAuthMessage(disabled ? t.oauth_provider_disabled : msg);
+      return;
+    }
+    try {
+      const probe = await fetch(data.url, { method: "GET", redirect: "manual", credentials: "omit" });
+      if (probe.status >= 400) {
+        const body = await probe.json().catch(() => ({}));
+        const msg = body.msg || body.error_description || body.message || t.oauth_error;
         const disabled = /not enabled|unsupported provider/i.test(msg);
+        setAuthLoading(false);
         setAuthMessage(disabled ? t.oauth_provider_disabled : msg);
         return;
       }
-      try {
-        const probe = await fetch(data.url, { method: "GET", redirect: "manual", credentials: "omit" });
-        if (probe.status >= 400) {
-          const body = await probe.json().catch(() => ({}));
-          const msg = body.msg || body.error_description || body.message || t.oauth_error;
-          const disabled = /not enabled|unsupported provider/i.test(msg);
-          setAuthLoading(false);
-          setAuthMessage(disabled ? t.oauth_provider_disabled : msg);
-          return;
-        }
-      } catch {
-        // CORS / réseau : on tente quand même la redirection OAuth
-      }
-      window.location.assign(data.url);
-      return;
+    } catch {
+      // CORS / réseau : on tente quand même la redirection OAuth
     }
-    // Mode maquette (pas de backend branché)
-    setUser({ provider: "Google", id: "demo-google", email: "demo@243kulture.app" });
-    addXp(20);
-    go("onboardingChoice");
+    window.location.assign(data.url);
   };
 
   const connectWith = (provider) => {
-    if (!legalAccepted) return;
+    if (!canSubmitAuth({ hasLanguage: Boolean(readStoredLang()), termsAccepted: legalAccepted })) {
+      setScreen(readStoredLang() ? "termsGate" : "languagePicker");
+      return;
+    }
     if (provider === "Google") { signInWithGoogle(); return; }
     go("auth");
   };
-  const enterApp = (provider) => {
-    if (!legalAccepted) return;
-    if (provider === "Google") { signInWithGoogle(); return; }
-    go("auth");
-  };
-  const skipAuth = () => go("auth");
+  const enterApp = (provider) => connectWith(provider);
   const logout = () => {
     if (isSupabaseConfigured) supabase.auth.signOut();
     setUser(null);
+    setHasCurrentCgu(false);
+    setCguChecked(false);
     setCreatorOnboardingChoice(null);
-    go("onboarding");
+    setScreen(readStoredLang() ? "onboarding" : "languagePicker");
   };
 
   const saveDisplayName = () => {
@@ -1605,7 +1357,10 @@ export default function App() {
   const hydrateProfiles = async (ids) => {
     const unique = [...new Set((ids || []).filter(Boolean))];
     if (unique.length === 0) return {};
-    const { data, error } = await supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, onboarding_country, creator_bio").in("id", unique);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_icon, creator_status, creator_name, creator_type, creator_languages, onboarding_country, creator_bio")
+      .in("id", unique);
     if (error) { console.warn("[profiles] hydrate", error.message); return {}; }
     const map = {};
     (data || []).forEach((p) => { map[p.id] = p; });
@@ -1613,27 +1368,53 @@ export default function App() {
   };
 
   const loadSocialGraph = async () => {
-    if (!isSupabaseConfigured || !user?.id) { setIncomingInvites([]); setOutgoingInvites([]); setSocialGraphLoading(false); return; }
+    if (!isSupabaseConfigured || !user?.id) {
+      setIncomingInvites([]); setOutgoingInvites([]);
+      setFollowingUsers([]); setFollowerUsers([]);
+      setSocialGraphLoading(false);
+      return;
+    }
     setSocialGraphLoading(true);
-    const [friendRes, inviteRes, notifRes] = await Promise.all([
+    const [friendRes, inviteRes, notifRes, followingRes, followerRes, discoverRes] = await Promise.all([
       supabase.from("friendships").select("user_id, friend_id").or(`user_id.eq.${user.id},friend_id.eq.${user.id}`),
       supabase.from("friend_invitations").select("id, sender_id, recipient_id, status, created_at").eq("status", "pending").or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`),
-      supabase.from("notifications").select("id, actor_id, type, text, read_at, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("notifications").select("id, actor_id, type, text, read_at, created_at, entity_type, entity_id, deep_link").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("user_follows").select("followed_id").eq("follower_id", user.id),
+      supabase.from("user_follows").select("follower_id").eq("followed_id", user.id),
+      supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, creator_name, creator_type, onboarding_country").neq("id", user.id).order("created_at", { ascending: false }).limit(24),
     ]);
     if (friendRes.error) console.warn("[friendships] load", friendRes.error.message);
     else setFriends([...new Set((friendRes.data || []).map((f) => (f.user_id === user.id ? f.friend_id : f.user_id)))]);
 
-    if (inviteRes.error) {
-      console.warn("[friend_invitations] load", inviteRes.error.message);
-    } else {
-      const incoming = (inviteRes.data || []).filter((i) => i.recipient_id === user.id);
-      const outgoing = (inviteRes.data || []).filter((i) => i.sender_id === user.id);
-      const profiles = await hydrateProfiles([
-        ...incoming.map((i) => i.sender_id),
-        ...outgoing.map((i) => i.recipient_id),
-      ]);
-      setIncomingInvites(incoming.map((i) => ({ ...i, profile: profiles[i.sender_id] || {} })));
-      setOutgoingInvites(outgoing.map((i) => ({ ...i, profile: profiles[i.recipient_id] || {} })));
+    const followingIds = (!followingRes.error && followingRes.data) ? followingRes.data.map((f) => f.followed_id) : [];
+    const followerIds = (!followerRes.error && followerRes.data) ? followerRes.data.map((f) => f.follower_id) : [];
+    if (followingRes.error) console.warn("[user_follows] following", followingRes.error.message);
+    if (followerRes.error) console.warn("[user_follows] followers", followerRes.error.message);
+    setFollowingUsers(followingIds);
+    setFollowerUsers(followerIds);
+
+    const incoming = (!inviteRes.error && inviteRes.data)
+      ? inviteRes.data.filter((i) => i.recipient_id === user.id)
+      : [];
+    const outgoing = (!inviteRes.error && inviteRes.data)
+      ? inviteRes.data.filter((i) => i.sender_id === user.id)
+      : [];
+    if (inviteRes.error) console.warn("[friend_invitations] load", inviteRes.error.message);
+    const profiles = await hydrateProfiles([
+      ...incoming.map((i) => i.sender_id),
+      ...outgoing.map((i) => i.recipient_id),
+      ...followingIds,
+      ...followerIds,
+    ]);
+    setCommunityProfiles((prev) => mergeProfileMap(prev, Object.values(profiles)));
+    setIncomingInvites(incoming.map((i) => ({ ...i, profile: profiles[i.sender_id] || {} })));
+    setOutgoingInvites(outgoing.map((i) => ({ ...i, profile: profiles[i.recipient_id] || {} })));
+
+    if (!discoverRes.error && discoverRes.data) {
+      setDiscoverPeople(discoverRes.data);
+      setCommunityProfiles((prev) => mergeProfileMap(prev, discoverRes.data));
+    } else if (discoverRes.error) {
+      console.warn("[profiles] discover", discoverRes.error.message);
     }
 
     if (notifRes.error) console.warn("[notifications] load", notifRes.error.message);
@@ -1646,7 +1427,7 @@ export default function App() {
         actor_id: n.actor_id,
         unread: !n.read_at,
         time: new Date(n.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }),
-        icon: n.type === "friend_invite" || n.type === "friend_accepted" ? "🤝" : "💬",
+        icon: notificationIcon(n.type),
       })));
       setNotifDot(rows.some((n) => !n.read_at));
     }
@@ -1731,22 +1512,90 @@ export default function App() {
   const cancelInvite = (invitationId) => runFriendRpc("cancel_friend_invitation", { p_invitation_id: invitationId }, `cancel:${invitationId}`);
   const removeFriend = (id) => runFriendRpc("remove_friendship", { p_friend_id: id }, `remove:${id}`);
 
+  const toggleUserFollow = async (id) => {
+    if (!canFollow(user?.id, id)) return;
+    const following = isFollowing(followingUsers, id);
+    if (!isSupabaseConfigured) {
+      setFollowingUsers((prev) => (following ? prev.filter((x) => x !== id) : [...prev, id]));
+      return;
+    }
+    setFriendActionBusy(`follow:${id}`);
+    setFriendActionError("");
+    const { error } = await supabase.rpc(following ? "unfollow_user" : "follow_user", { p_followed_id: id });
+    setFriendActionBusy(null);
+    if (error) {
+      console.warn("[follow]", error.message);
+      setFriendActionError(t.friend_action_error);
+      return;
+    }
+    setFollowingUsers((prev) => (following ? prev.filter((x) => x !== id) : [...prev, id]));
+    if (viewedProfile?.id === id) {
+      setViewedProfileStats((prev) => ({
+        ...prev,
+        followers: Math.max(0, (prev.followers || 0) + (following ? -1 : 1)),
+      }));
+    }
+    await loadSocialGraph();
+  };
+
   const openPublicProfile = async (profileId) => {
     if (!profileId) return;
     if (profileId === user?.id) { go("profil"); return; }
     if (!isSupabaseConfigured) {
       const mock = COMMUNITY_MEMBERS.find((m) => m.id === profileId);
-      if (mock) setViewedProfile({ id: mock.id, display_name: mock.name, avatar_icon: mock.icon, creator_bio: mock.bio });
+      if (mock) {
+        setViewedProfile({ id: mock.id, display_name: mock.name, avatar_icon: mock.icon, creator_bio: mock.bio });
+        setViewedProfileStats({ followers: 0, following: 0, posts: 0 });
+        setViewedProfilePosts([]);
+      }
       go("userProfile");
       return;
     }
     setViewedProfileLoading(true);
     setFriendActionError("");
+    setViewedProfilePosts([]);
+    setViewedProfileStats({ followers: 0, following: 0, posts: 0 });
     go("userProfile");
-    const { data, error } = await supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, onboarding_country, creator_bio").eq("id", profileId).maybeSingle();
+    const [profileRes, statsRes, postsRes] = await Promise.all([
+      supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, creator_name, creator_type, creator_languages, onboarding_country, creator_bio").eq("id", profileId).maybeSingle(),
+      supabase.rpc("get_public_profile_stats", { p_profile_id: profileId }),
+      supabase.from("posts").select("id, user_id, text, media_url, media_type, created_at").eq("user_id", profileId).order("created_at", { ascending: false }).limit(20),
+    ]);
     setViewedProfileLoading(false);
-    if (error || !data) { setFriendActionError(t.friend_action_error); setViewedProfile({ id: profileId }); return; }
-    setViewedProfile(data);
+    if (profileRes.error || !profileRes.data) {
+      setFriendActionError(t.friend_action_error);
+      setViewedProfile({ id: profileId });
+      return;
+    }
+    setViewedProfile(profileRes.data);
+    setCommunityProfiles((prev) => mergeProfileMap(prev, [profileRes.data]));
+    if (!statsRes.error && statsRes.data) {
+      const s = statsRes.data;
+      setViewedProfileStats({
+        followers: s.followers ?? 0,
+        following: s.following ?? 0,
+        posts: s.posts ?? 0,
+      });
+    } else if (statsRes.error) {
+      console.warn("[get_public_profile_stats]", statsRes.error.message);
+    }
+    if (!postsRes.error && postsRes.data) {
+      setViewedProfilePosts(postsRes.data.map((p) => ({
+        id: p.id,
+        authorId: p.user_id,
+        text: p.text || "",
+        media_url: p.media_url,
+        media_type: p.media_type,
+        time: new Date(p.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }),
+      })));
+    }
+  };
+
+  const isRealProfileId = (id) => Boolean(id && id !== "me" && typeof id === "string" && id.length >= 32);
+  const openAuthorProfile = (authorId) => {
+    if (!authorId) return;
+    if (authorId === "me" || authorId === user?.id) { go("profil"); return; }
+    if (isRealProfileId(authorId) || communityProfiles[authorId]) openPublicProfile(authorId);
   };
 
   const RelationActions = ({ profileId, compact }) => {
@@ -1754,16 +1603,28 @@ export default function App() {
     const incoming = incomingInvites.find((i) => i.sender_id === profileId);
     const outgoing = outgoingInvites.find((i) => i.recipient_id === profileId);
     const busy = friendActionBusy;
+    const following = isFollowing(followingUsers, profileId);
     if (rel === "self") return null;
     if (!isSupabaseConfigured) {
       return (
-        <div className={`friend-btn${friends.includes(profileId) ? " added" : " add"}`} onClick={(e) => { e.stopPropagation(); toggleFriend(profileId); }}>
-          {friends.includes(profileId) ? t.added_friend : t.add_friend}
+        <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
+          <div className={`friend-btn${following ? " added" : " add"}`} onClick={() => toggleUserFollow(profileId)}>
+            {following ? t.following_action : t.follow_action}
+          </div>
+          <div className={`friend-btn${friends.includes(profileId) ? " added" : " add"}`} onClick={() => toggleFriend(profileId)}>
+            {friends.includes(profileId) ? t.added_friend : t.add_friend}
+          </div>
         </div>
       );
     }
     return (
       <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
+        <div
+          className={`friend-btn${following ? " added" : " add"}${busy === `follow:${profileId}` ? " pending" : ""}`}
+          onClick={() => !busy && toggleUserFollow(profileId)}
+        >
+          {busy === `follow:${profileId}` ? t.friend_action_loading : (following ? t.unfollow_action : t.follow_action)}
+        </div>
         {rel === "friends" && (
           <>
             {!compact && <div className="friend-btn added">{t.relation_friends}</div>}
@@ -1852,7 +1713,7 @@ export default function App() {
         mediaUrl = data?.publicUrl || mediaUrl;
       }
     }
-    const localPost = { id: localId, author: "Toi", icon: "🎤", time: "À l'instant", text: newPost.trim(), media_url: mediaUrl, media_type: postMediaType };
+    const localPost = { id: localId, authorId: user?.id, author: "Toi", icon: "🎤", time: "À l'instant", text: newPost.trim(), media_url: mediaUrl, media_type: postMediaType };
     setPosts((prev) => [localPost, ...prev]);
     if (isSupabaseConfigured && user?.id) {
       const { data, error } = await supabase.from("posts").insert({ user_id: user.id, text: newPost.trim() || "", media_url: mediaUrl || null, media_type: postMediaType || null }).select("id").single();
@@ -2233,6 +2094,12 @@ export default function App() {
         .lang-row { display:flex; gap:8px; }
         .lang-btn { flex:1; text-align:center; padding:8px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11.5px; cursor:pointer; color:var(--text); }
         .lang-btn.selected { background:var(--gold); color:#1a1200; font-weight:700; border-color:var(--gold); }
+        .lang-picker-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; max-width:420px; margin:0 auto 18px; }
+        .lang-picker-card { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:14px; background:var(--glass); border:1.5px solid var(--glass-border); cursor:pointer; color:var(--text); text-align:left; }
+        .lang-picker-card.selected { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
+        .lang-picker-flag { font-size:22px; line-height:1; }
+        .lang-picker-name { font-size:13.5px; font-weight:700; }
+        .lang-picker-code { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
         .notif-item { display:flex; gap:10px; background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; padding:11px 12px; margin-bottom:9px; }
         .notif-item .nic { font-size:19px; }
         .notif-item .ntxt { font-size:12px; color:var(--text); font-weight:600; margin-bottom:2px; }
@@ -2455,9 +2322,15 @@ export default function App() {
         .friend-btn.pending { background:rgba(232,184,75,0.12); border:1px solid rgba(232,184,75,0.35); color:var(--gold); }
         .friend-actions { margin-left:auto; display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
         .friend-card.clickable { cursor:pointer; }
-        .subtab-row { display:flex; gap:8px; margin-bottom:16px; }
-        .subtab { flex:1; text-align:center; padding:9px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11.5px; cursor:pointer; color:var(--muted); font-weight:600; }
+        .subtab-row { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+        .subtab { flex:1 1 calc(33% - 6px); min-width:88px; text-align:center; padding:9px 6px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11px; cursor:pointer; color:var(--muted); font-weight:600; }
         .subtab.selected { background:var(--gold); color:#1a1200; border-color:var(--gold); }
+        .feed-mode-row { display:flex; gap:8px; margin-bottom:14px; }
+        .profile-stats-row { display:flex; gap:10px; justify-content:center; margin:14px 0 18px; }
+        .profile-stat { flex:1; max-width:110px; text-align:center; background:var(--glass); border:1px solid var(--glass-border); border-radius:12px; padding:10px 6px; }
+        .profile-stat .n { font-size:16px; font-weight:800; color:var(--gold); }
+        .profile-stat .l { font-size:10px; color:var(--muted); margin-top:2px; }
+        .post-name.clickable, .comment-item strong.clickable { cursor:pointer; color:var(--gold); }
         .post-compose { display:flex; gap:8px; margin-bottom:16px; }
         .post-compose input { flex:1; background:var(--glass); border:1px solid var(--glass-border); border-radius:12px; padding:10px 12px; color:var(--text); font-size:12.5px; outline:none; }
         .post-compose input::placeholder { color:var(--muted); }
@@ -2514,28 +2387,112 @@ export default function App() {
       <div className="phone">
         {xpToast && <div className="xp-toast">✨ +{xpToast.amount} {t.xp_pts}</div>}
 
-        {/* ONBOARDING — connexion / inscription */}
+        {/* GATE 1 — Language picker (mandatory, original app logo) */}
+        {screen === "languagePicker" && (
+          <div className="onb-screen">
+            <div className="onb-logo-row"><Logo size={130} /></div>
+            <div className="onb-title">{t.lang_picker_title}</div>
+            <div className="onb-sub">{t.lang_picker_sub}</div>
+            <div className="lang-picker-grid">
+              {LANG_META.map((l) => (
+                <div
+                  key={l.code}
+                  className={`lang-picker-card${langDraft === l.code ? " selected" : ""}`}
+                  onClick={() => { setLangDraft(l.code); setLang(l.code); setAuthMessage(""); }}
+                >
+                  <span className="lang-picker-flag" aria-hidden="true">{l.flag}</span>
+                  <span>
+                    <div className="lang-picker-name">{l.nativeName}</div>
+                    <div className="lang-picker-code">{l.code}</div>
+                  </span>
+                  {langDraft === l.code && <Check size={16} strokeWidth={3} style={{ marginLeft: "auto", color: "var(--gold)" }} />}
+                </div>
+              ))}
+            </div>
+            {isProvisionalLang(langDraft) && <div className="note" style={{ textAlign: "center", marginBottom: 10 }}>{t.provisional_note}</div>}
+            {authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center" }}>{authMessage}</div>}
+            <div
+              className="toggle-btn selected"
+              style={{ opacity: langDraft ? 1 : 0.45, pointerEvents: langDraft ? "auto" : "none", maxWidth: 420, width: "100%" }}
+              onClick={async () => {
+                if (!langDraft) { setAuthMessage(t.lang_picker_required); return; }
+                await applyLanguage(langDraft);
+                setCguChecked(false);
+                setScreen("termsGate");
+              }}
+            >
+              {t.lang_picker_continue}
+            </div>
+          </div>
+        )}
+
+        {/* GATE 2 — CGU / privacy info + explicit CGU checkbox */}
+        {screen === "termsGate" && (
+          <div className="onb-screen">
+            <div className="onb-logo-row"><Logo size={110} /></div>
+            <div className="onb-title">{t.terms_gate_title}</div>
+            <div className="onb-sub">{t.terms_gate_sub}</div>
+            <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>{t.terms_version_label}: {REQUIRED_CGU_VERSION}</div>
+            <div className="legal-tabs" style={{ maxWidth: 420, width: "100%" }}>
+              <div className={`subtab${legalTab === "cgu" ? " selected" : ""}`} onClick={() => setLegalTab("cgu")}>{tl.tab_cgu}</div>
+              <div className={`subtab${legalTab === "confidentialite" ? " selected" : ""}`} onClick={() => setLegalTab("confidentialite")}>{tl.tab_conf}</div>
+            </div>
+            <div className="legal-body" style={{ maxWidth: 420, width: "100%", maxHeight: 220, overflow: "auto", marginBottom: 14, textAlign: "left" }}>
+              {legalTab === "cgu" ? (
+                <>
+                  <p><em>{tl.cguNote}</em></p>
+                  {tl.cguSections.slice(0, 3).map(([h, p], i) => (<React.Fragment key={i}><h4>{h}</h4><p>{p}</p></React.Fragment>))}
+                  <div className="note" style={{ cursor: "pointer", color: "var(--gold)" }} onClick={() => { setLegalTab("cgu"); setScreen("legal"); }}>{tl.cguLabel} →</div>
+                </>
+              ) : (
+                <>
+                  <p><em>{t.terms_privacy_info}</em></p>
+                  <p><em>{tl.confNote}</em></p>
+                  {tl.confSections.slice(0, 2).map(([h, p], i) => (<React.Fragment key={i}><h4>{h}</h4><p>{p}</p></React.Fragment>))}
+                  <div className="note" style={{ cursor: "pointer", color: "var(--gold)" }} onClick={() => { setLegalTab("confidentialite"); setScreen("legal"); }}>{tl.confLabel} →</div>
+                </>
+              )}
+            </div>
+            <div className="consent-row" style={{ maxWidth: 420, width: "100%" }} onClick={() => setCguChecked(!cguChecked)}>
+              <div className={`consent-box${cguChecked ? " checked" : ""}`}>{cguChecked && <Check size={12} strokeWidth={3} />}</div>
+              <div className="consent-txt">{t.terms_accept_label}</div>
+            </div>
+            {authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center" }}>{authMessage}</div>}
+            {!cguChecked && !authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center" }}>{t.terms_must_accept}</div>}
+            <div
+              className="toggle-btn selected"
+              style={{ opacity: cguChecked ? 1 : 0.45, pointerEvents: cguChecked ? "auto" : "none", maxWidth: 420, width: "100%" }}
+              onClick={async () => {
+                if (!cguChecked) { setAuthMessage(t.terms_must_accept); return; }
+                if (user?.id && !String(user.id).startsWith("demo-")) {
+                  const ok = await persistCguAcceptance();
+                  if (!ok) return;
+                  setScreen("home");
+                  return;
+                }
+                setScreen("onboarding");
+              }}
+            >
+              {t.terms_gate_continue}
+            </div>
+          </div>
+        )}
+
+        {/* ONBOARDING — connexion / inscription (after language + CGU checkbox) */}
         {screen === "onboarding" && (
           <div className="onb-screen">
             <div className="onb-logo-row"><Logo size={150} /></div>
             <div className="onb-title">{t.onb_title}</div>
             <div className="onb-sub">{t.onb_sub}</div>
-            <div className="consent-row" onClick={() => setLegalAccepted(!legalAccepted)}>
-              <div className={`consent-box${legalAccepted ? " checked" : ""}`}>{legalAccepted && <Check size={12} strokeWidth={3} />}</div>
-              <div className="consent-txt">{tl.consent(
-                <a onClick={(e) => { e.stopPropagation(); setLegalTab("cgu"); go("legal"); }}>{tl.cguLabel}</a>,
-                <a onClick={(e) => { e.stopPropagation(); setLegalTab("confidentialite"); go("legal"); }}>{tl.confLabel}</a>
-              )}</div>
-            </div>
-            <div className="auth-row" style={{ opacity: legalAccepted && !authLoading ? 1 : 0.45, pointerEvents: legalAccepted && !authLoading ? "auto" : "none" }}>
+            <div className="auth-row" style={{ opacity: !authLoading ? 1 : 0.45, pointerEvents: !authLoading ? "auto" : "none" }}>
               <div className="auth-btn google" onClick={() => enterApp("Google")}><span className="auth-ic">G</span> {authLoading ? t.oauth_redirecting : t.btn_google}</div>
               <div className="auth-btn" onClick={() => { setAuthMode("signup"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">✉</span> {t.btn_signup}</div>
               <div className="auth-btn" onClick={() => { setAuthMode("login"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
             </div>
             {authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{authMessage}</div>}
-            {!legalAccepted && !authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center", marginTop: 2 }}>{tl.checkWarn}</div>}
             <div className="onb-or">{t.onb_or}</div>
-            <div className="note" style={{ textAlign: "center" }}>L'accès à 243Kulture nécessite un compte. Connecte-toi ou crée ton compte pour continuer.</div>
+            <div className="note" style={{ textAlign: "center" }}>{t.auth_required_note}</div>
+            {!isSupabaseConfigured && <div className="note" style={{ textAlign: "center", color: "var(--red)" }}>{t.auth_backend_required}</div>}
           </div>
         )}
 
@@ -2632,7 +2589,7 @@ export default function App() {
             <div className="section-label">Catégories</div><div className="chip-row" style={{ flexWrap: "wrap" }}>{CREATOR_CATEGORIES.map((cat) => <Chip key={cat} selected={creatorForm.creator_categories.includes(cat)} onClick={() => toggleCreatorCategory(cat)}>{cat}</Chip>)}</div>
             <div className="section-label">Type de créateur</div><div className="chip-row" style={{ flexWrap: "wrap" }}>{CREATOR_TYPES.map((ty) => <Chip key={ty} selected={creatorForm.creator_type === ty} onClick={() => setCreatorForm((p) => ({ ...p, creator_type: ty }))}>{ty}</Chip>)}</div>
             <input className="search-bar" style={{ width: "100%", boxSizing: "border-box", marginBottom: 10 }} placeholder="Ville / pays (facultatif)" value={creatorForm.creator_location} onChange={(e) => setCreatorForm((p) => ({ ...p, creator_location: e.target.value }))} />
-            <div className="section-label">Langues</div><div className="chip-row" style={{ flexWrap: "wrap" }}>{["fr", "ln", "en", "nl"].map((l) => <Chip key={l} selected={creatorForm.creator_languages.includes(l)} onClick={() => toggleCreatorLanguage(l)}>{LANG_LABELS[l]}</Chip>)}</div>
+            <div className="section-label">{t.sec_lang}</div><div className="chip-row" style={{ flexWrap: "wrap" }}>{LANG_META.map((l) => <Chip key={l.code} selected={creatorForm.creator_languages.includes(l.code)} onClick={() => toggleCreatorLanguage(l.code)}>{l.nativeName}</Chip>)}</div>
             <input className="search-bar" style={{ width: "100%", boxSizing: "border-box", marginBottom: 10 }} placeholder="Instagram (lien, facultatif)" value={creatorForm.creator_ig} onChange={(e) => setCreatorForm((p) => ({ ...p, creator_ig: e.target.value }))} />
             <input className="search-bar" style={{ width: "100%", boxSizing: "border-box", marginBottom: 10 }} placeholder="TikTok (lien, facultatif)" value={creatorForm.creator_tiktok} onChange={(e) => setCreatorForm((p) => ({ ...p, creator_tiktok: e.target.value }))} />
             <input className="search-bar" style={{ width: "100%", boxSizing: "border-box", marginBottom: 10 }} placeholder="YouTube (lien, facultatif)" value={creatorForm.creator_youtube} onChange={(e) => setCreatorForm((p) => ({ ...p, creator_youtube: e.target.value }))} />
@@ -2690,16 +2647,29 @@ export default function App() {
                   </div>
                   {otherStories.map((s) => {
                     const m = COMMUNITY_MEMBERS.find((mm) => mm.id === s.authorId);
-                    const name = s.authorName || (m ? m.name : "243Kulture");
+                    const profile = communityProfiles[s.authorId];
+                    const name = s.authorName || profile?.display_name || (m ? m.name : "243Kulture");
                     return (
-                      <div className="story-chip" key={s.id} onClick={() => openStory(s.id)}>
+                      <div
+                        className="story-chip"
+                        key={s.id}
+                        onClick={() => openStory(s.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          openAuthorProfile(s.authorId);
+                        }}
+                      >
                         <div className={`story-ticket${!seenStories.includes(s.id) ? " unseen" : ""}`}>
                           {s.media ? (
                             <div className="story-ticket-media">{s.type === "video" ? <video src={s.media} muted playsInline /> : <img src={s.media} alt="" />}</div>
                           ) : <div className="story-ticket-media" style={{ background: s.color || "linear-gradient(145deg,var(--blue),var(--green))" }} />}
                           <div className="story-ticket-overlay" />
-                          <div className="story-ticket-icon">{s.authorIcon || (m ? m.icon : "🎤")}</div>
-                          <div className="story-ticket-name">{name.split(" ")[0]}</div>
+                          <div className="story-ticket-icon">{s.authorIcon || profile?.avatar_icon || (m ? m.icon : "🎤")}</div>
+                          <div
+                            className="story-ticket-name"
+                            onClick={(e) => { e.stopPropagation(); openAuthorProfile(s.authorId); }}
+                            style={{ cursor: isRealProfileId(s.authorId) ? "pointer" : "default" }}
+                          >{name.split(" ")[0]}</div>
                           <div className="story-ticket-label">Kulture</div>
                         </div>
                       </div>
@@ -3095,25 +3065,10 @@ export default function App() {
               {!user && (
                 <>
                   <div className="section-label" style={{ marginTop: 0 }}>{t.sec_connexion}</div>
-                  <div className="note" style={{ marginBottom: 12 }}>{t.connexion_note}</div>
-
-                  <div className="consent-row" onClick={() => setLegalAccepted(!legalAccepted)}>
-                    <div className={`consent-box${legalAccepted ? " checked" : ""}`}>{legalAccepted && <Check size={12} strokeWidth={3} />}</div>
-                    <div className="consent-txt">
-                      {tl.consent(
-                        <a onClick={(e) => { e.stopPropagation(); setLegalTab("cgu"); go("legal"); }}>{tl.cguLabel}</a>,
-                        <a onClick={(e) => { e.stopPropagation(); setLegalTab("confidentialite"); go("legal"); }}>{tl.confLabel}</a>
-                      )}
-                    </div>
+                  <div className="note" style={{ marginBottom: 12 }}>{t.auth_required_note}</div>
+                  <div className="toggle-btn selected" onClick={() => setScreen(readStoredLang() ? (cguChecked ? "onboarding" : "termsGate") : "languagePicker")}>
+                    {t.btn_login} / {t.btn_signup}
                   </div>
-
-                  <div className="auth-row" style={{ opacity: legalAccepted && !authLoading ? 1 : 0.45, pointerEvents: legalAccepted && !authLoading ? "auto" : "none" }}>
-                    <div className="auth-btn google" onClick={() => connectWith("Google")}><span className="auth-ic">G</span> {authLoading ? t.oauth_redirecting : t.btn_google}</div>
-                    <div className="auth-btn" onClick={() => { setAuthMode("signup"); go("auth"); }}><span className="auth-ic">✉</span> {t.btn_signup}</div>
-                    <div className="auth-btn" onClick={() => { setAuthMode("login"); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
-                  </div>
-                  {authMessage && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{authMessage}</div>}
-                  {!legalAccepted && !authMessage && <div className="note" style={{ color: "var(--red)", marginBottom: 10 }}>{tl.checkWarn}</div>}
                 </>
               )}
 
@@ -3159,13 +3114,19 @@ export default function App() {
               </div>
 
               <div className="section-label">{t.sec_lang}</div>
-              <div className="lang-row" style={{ marginBottom: 8, flexWrap: "wrap" }}>
-                {Object.keys(LANG_LABELS).map((code) => (
-                  <div key={code} className={`lang-btn${lang === code ? " selected" : ""}`} style={{ flexBasis: "47%" }} onClick={() => { setLang(code); if (isSupabaseConfigured && user?.id) dbUpdateProfile(user.id, { language: code }); }}>
-                    {LANG_LABELS[code]}
+              <div className="lang-row" style={{ marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                {LANG_META.map((l) => (
+                  <div
+                    key={l.code}
+                    className={`lang-btn${lang === l.code ? " selected" : ""}`}
+                    style={{ flexBasis: "47%" }}
+                    onClick={() => applyLanguage(l.code)}
+                  >
+                    {l.flag} {l.nativeName}
                   </div>
                 ))}
               </div>
+              {isProvisionalLang(lang) && <div className="note" style={{ marginBottom: 8 }}>{t.provisional_note}</div>}
               <div className="note" style={{ marginBottom: 16 }}>{t.lang_note}</div>
 
               <div className="section-label">{t.sec_reseaux}</div>
@@ -3286,7 +3247,7 @@ export default function App() {
                   <div className="artist-list-av">{a.icon}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="artist-list-name">{a.name}</div>
-                    <div className="artist-list-bio">{ARTIST_BIO_I18N[lang][a.id].bio}</div>
+                    <div className="artist-list-bio">{ARTIST_BIO_I18N[contentLang(lang)][a.id].bio}</div>
                   </div>
                   <div className={`friend-btn${followedArtists.includes(a.id) ? " added" : " add"}`} onClick={(e) => { e.stopPropagation(); toggleFollowArtist(a.id); }}>
                     {followedArtists.includes(a.id) ? t.artist_following : t.artist_follow}
@@ -3356,7 +3317,7 @@ export default function App() {
                 const count = ev.baseGoing + (going ? 1 : 0);
                 return (
                   <div key={ev.id} className="event-card" style={ev.img ? { backgroundImage: `url(${ev.img})` } : { background: ev.bg }}>
-                    <div className="event-cat-tag">{EVENT_CAT_LABELS[lang][ev.cat]}</div>
+                    <div className="event-cat-tag">{EVENT_CAT_LABELS[contentLang(lang)][ev.cat]}</div>
                     <div className="event-content">
                       <div className="event-title">{ev.title}</div>
                       <div className="event-sub">{ev.sub}</div>
@@ -3539,6 +3500,9 @@ export default function App() {
                 <>
                   <div className="subtab-row">
                     <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
+                    <div className={`subtab${communityTab === "abonnements" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnements")}>{t.tab_following}</div>
+                    <div className={`subtab${communityTab === "abonnes" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnes")}>{t.tab_followers}</div>
+                    <div className={`subtab${communityTab === "decouvrir" ? " selected" : ""}`} onClick={() => setCommunityTab("decouvrir")}>{t.tab_discover_people}</div>
                     <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
                     <div className={`subtab${communityTab === "messages" ? " selected" : ""}`} onClick={() => setCommunityTab("messages")}>{t.tab_messages}</div>
                   </div>
@@ -3617,8 +3581,82 @@ export default function App() {
                     </>
                   )}
 
+                  {communityTab === "abonnements" && (
+                    <>
+                      <div className="section-label">{t.tab_following}</div>
+                      <div className="note" style={{ marginBottom: 14 }}>{followingUsers.length} · {t.following_count}</div>
+                      {followingProfiles.length === 0 && <div className="empty-state"><span className="ic">👀</span><div className="txt">{t.no_follows}</div></div>}
+                      {followingProfiles.map((p) => (
+                        <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                          <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                          <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.following_action}</div></div>
+                          <RelationActions profileId={p.id} compact />
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {communityTab === "abonnes" && (
+                    <>
+                      <div className="section-label">{t.tab_followers}</div>
+                      <div className="note" style={{ marginBottom: 14 }}>{followerUsers.length} · {t.followers_count}</div>
+                      {followerProfiles.length === 0 && <div className="empty-state"><span className="ic">👥</span><div className="txt">{t.no_followers}</div></div>}
+                      {followerProfiles.map((p) => (
+                        <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                          <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                          <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.followers_count}</div></div>
+                          <RelationActions profileId={p.id} compact />
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {communityTab === "decouvrir" && (
+                    <>
+                      <div className="section-label">{t.discover_people_title}</div>
+                      <div className="note" style={{ marginBottom: 14 }}>{t.discover_people_sub}</div>
+                      <div className="search-bar" style={{ marginBottom: 14 }}>
+                        <Search size={16} strokeWidth={2} />
+                        <input type="text" placeholder={t.user_search_placeholder} value={userSearchQuery} onChange={(e) => searchUsers(e.target.value)} />
+                      </div>
+                      {userSearchQuery.trim().length >= 2 ? (
+                        <>
+                          {isSearchingUsers && <div className="note" style={{ marginBottom: 10 }}>{t.searching}</div>}
+                          {!isSearchingUsers && userSearchResults.length === 0 && <div className="note" style={{ marginBottom: 14 }}>{t.no_users_found}</div>}
+                          {userSearchResults.map((p) => (
+                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                              <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                              <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.view_profile}</div></div>
+                              <RelationActions profileId={p.id} compact />
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          {discoverPeople.filter((p) => !followingUsers.includes(p.id)).map((p) => (
+                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                              <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
+                              <div>
+                                <div className="friend-name">{p.display_name || p.creator_name || t.profile_fan}</div>
+                                <div className="friend-bio">{p.creator_status && p.creator_status !== "member" ? creatorStatusLabel(p.creator_status, lang) : t.discover_people_sub}</div>
+                              </div>
+                              <RelationActions profileId={p.id} compact />
+                            </div>
+                          ))}
+                          {discoverPeople.filter((p) => !followingUsers.includes(p.id)).length === 0 && (
+                            <div className="empty-state"><span className="ic">🔍</span><div className="txt">{t.user_search_hint}</div></div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+
                   {communityTab === "feed" && (
                     <>
+                      <div className="feed-mode-row">
+                        <div className={`subtab${feedMode === "pourtoi" ? " selected" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</div>
+                        <div className={`subtab${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
+                      </div>
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
                           onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
@@ -3626,13 +3664,22 @@ export default function App() {
                         <div className="post-send" onClick={addPost}>{t.post_btn}</div>
                       </div>
                       {postMediaPreview && <div className="post-media-preview">{postMediaType === "video" ? <video src={postMediaPreview} controls /> : <img src={postMediaPreview} alt="" />}<button onClick={() => { setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null); }}><X size={14}/></button></div>}
-                      {posts.map((p) => {
+                      {feedMode === "abonnements" && visibleFeedPosts.length === 0 && (
+                        <div className="empty-state"><span className="ic">👀</span><div className="txt">{t.feed_subs_empty}</div></div>
+                      )}
+                      {visibleFeedPosts.map((p) => {
                         const comments = commentsByPost[p.id] || [];
                         return (
                         <div className="post-card" key={p.id}>
                           <div className="post-head">
-                            <div className="post-avatar">{p.icon}</div>
-                            <div><div className="post-name">{p.author}</div><div className="post-time">{p.time}</div></div>
+                            <div className="post-avatar" style={{ cursor: p.authorId ? "pointer" : "default" }} onClick={() => openAuthorProfile(p.authorId)}>{p.icon}</div>
+                            <div>
+                              <div
+                                className={`post-name${p.authorId ? " clickable" : ""}`}
+                                onClick={() => openAuthorProfile(p.authorId)}
+                              >{p.author}</div>
+                              <div className="post-time">{p.time}</div>
+                            </div>
                           </div>
                           {p.repost_of && <div className="post-repost-label"><Repeat2 size={13}/> Republication</div>}
                           <div className="post-text">{p.text}</div>
@@ -3646,9 +3693,17 @@ export default function App() {
                           <div className="comments-box">
                             {comments.filter((c) => !c.parent_id).map((c) => (
                               <div className="comment-thread" key={c.id}>
-                                <div className="comment-item"><strong>{c.author}</strong><span>{c.text}</span></div>
+                                <div className="comment-item">
+                                  <strong className={c.user_id ? "clickable" : ""} onClick={() => openAuthorProfile(c.user_id)}>{c.author}</strong>
+                                  <span>{c.text}</span>
+                                </div>
                                 <button className="comment-reply-btn" onClick={() => setReplyingToComment(`${p.id}:${c.id}`)}>Répondre</button>
-                                {comments.filter((r) => r.parent_id === c.id).map((r) => <div className="comment-item comment-reply" key={r.id}><strong>{r.author}</strong><span>{r.text}</span></div>)}
+                                {comments.filter((r) => r.parent_id === c.id).map((r) => (
+                                  <div className="comment-item comment-reply" key={r.id}>
+                                    <strong className={r.user_id ? "clickable" : ""} onClick={() => openAuthorProfile(r.user_id)}>{r.author}</strong>
+                                    <span>{r.text}</span>
+                                  </div>
+                                ))}
                                 {replyingToComment === `${p.id}:${c.id}` && <div className="comment-compose"><input autoFocus placeholder={`Répondre à ${c.author}…`} value={commentDrafts[`${p.id}:${c.id}`] || ""} onChange={(e) => setCommentDrafts((d) => ({ ...d, [`${p.id}:${c.id}`]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && togglePostComment(p.id, c.id)} /><button onClick={() => togglePostComment(p.id, c.id)}><Send size={14}/></button></div>}
                               </div>
                             ))}
@@ -3730,7 +3785,7 @@ export default function App() {
           <>
             <div className="status" />
             <div className="header">
-              <span className="back" onClick={() => go("profil")} style={{ margin: 0 }}>← </span>
+              <span className="back" onClick={() => setScreen(user && hasCurrentCgu ? "profil" : "termsGate")} style={{ margin: 0 }}>← </span>
               <div><div className="htitle">{t.legal_title}</div><div className="hsub">243Kulture</div></div>
             </div>
             <div className="content">
@@ -3761,7 +3816,11 @@ export default function App() {
           const s = order.find((x) => x.id === activeStoryId);
           if (!s) return null;
           const m = s.authorId === "me" ? null : COMMUNITY_MEMBERS.find((mm) => mm.id === s.authorId);
+          const profile = s.authorId === "me" ? null : communityProfiles[s.authorId];
           const hoursLeft = Math.max(0, Math.ceil((DAY_MS - (Date.now() - s.createdAt)) / 3600000));
+          const storyAuthorLabel = s.authorId === "me"
+            ? t.story_your
+            : (s.authorName || profile?.display_name || (m ? m.name : "243Kulture"));
           return (
             <div className="story-viewer">
               <div className="story-progress-row">
@@ -3772,9 +3831,17 @@ export default function App() {
                 ))}
               </div>
               <div className="story-header">
-                <div className="sav">{s.authorId === "me" ? "🎤" : (m ? m.icon : "🎤")}</div>
+                <div
+                  className="sav"
+                  style={{ cursor: s.authorId && s.authorId !== "me" ? "pointer" : "default" }}
+                  onClick={() => openAuthorProfile(s.authorId)}
+                >{s.authorId === "me" ? "🎤" : (s.authorIcon || profile?.avatar_icon || (m ? m.icon : "🎤"))}</div>
                 <div>
-                  <div className="sname">{s.authorId === "me" ? t.story_your : (m ? m.name : "243Kulture")}</div>
+                  <div
+                    className="sname"
+                    style={{ cursor: s.authorId && s.authorId !== "me" ? "pointer" : "default" }}
+                    onClick={() => openAuthorProfile(s.authorId)}
+                  >{storyAuthorLabel}</div>
                   <div className="stime">{t.story_expires} {hoursLeft}{t.story_hours}</div>
                 </div>
                 <div className="story-close" onClick={closeStory}><X size={22} strokeWidth={2} /></div>
@@ -3876,15 +3943,32 @@ export default function App() {
               {!viewedProfileLoading && viewedProfile && (
                 <>
                   <div className="profile-avatar">{viewedProfile.avatar_icon || "🎶"}</div>
-                  <div className="profile-name">{viewedProfile.display_name || t.profile_fan}</div>
+                  <div className="profile-name">{viewedProfile.display_name || viewedProfile.creator_name || t.profile_fan}</div>
                   {viewedProfile.creator_status && viewedProfile.creator_status !== "member" && (
                     <div className="streak-pill" style={{ margin: "6px auto 10px", display: "flex", width: "fit-content" }}><Star size={13} /> {creatorStatusLabel(viewedProfile.creator_status, lang)}</div>
                   )}
+                  {viewedProfile.creator_type && <div className="note" style={{ textAlign: "center", marginBottom: 4 }}>{t.profile_creator_type}: {viewedProfile.creator_type}</div>}
                   {viewedProfile.onboarding_country && <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>{viewedProfile.onboarding_country}</div>}
                   {viewedProfile.creator_bio && <div className="note" style={{ textAlign: "center", marginBottom: 14 }}>{viewedProfile.creator_bio}</div>}
-                  <div style={{ display: "flex", justifyContent: "center" }}>
+                  <div className="profile-stats-row">
+                    <div className="profile-stat"><div className="n">{viewedProfileStats.followers}</div><div className="l">{t.followers_count}</div></div>
+                    <div className="profile-stat"><div className="n">{viewedProfileStats.following}</div><div className="l">{t.following_count}</div></div>
+                    <div className="profile-stat"><div className="n">{viewedProfileStats.posts}</div><div className="l">{t.posts_count}</div></div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                     <RelationActions profileId={viewedProfile.id} />
                   </div>
+                  <div className="section-label">{t.profile_public_posts}</div>
+                  {viewedProfilePosts.length === 0 && <div className="note">{t.feed_subs_empty}</div>}
+                  {viewedProfilePosts.map((p) => (
+                    <div className="post-card" key={p.id}>
+                      <div className="post-time" style={{ marginBottom: 6 }}>{p.time}</div>
+                      <div className="post-text">{p.text}</div>
+                      {p.media_url && (p.media_type === "video"
+                        ? <video className="post-media" src={p.media_url} controls />
+                        : <img className="post-media" src={p.media_url} alt="" />)}
+                    </div>
+                  ))}
                 </>
               )}
             </div>

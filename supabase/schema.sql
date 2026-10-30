@@ -9,7 +9,7 @@ create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text default 'Fan de rumba',
   avatar_icon text default '🎶',
-  language text default 'fr' check (language in ('fr','ln','en','nl')),
+  language text default 'fr' check (language in ('fr','en','nl','ln','sw','lua','kg','mongo')),
   xp integer default 0,
   streak_days integer default 0,
   last_active_date date default current_date,
