@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   canFollow,
+  filterDiscoveryFeed,
   filterSubscriptionFeed,
   friendRelation,
   isFollowing,
@@ -44,6 +45,15 @@ const posts = [
 ];
 const sub = filterSubscriptionFeed(posts, [B], A);
 assert.deepEqual(sub.map((p) => p.id), ["1", "2"]);
+
+// Pour toi discovery (not followed; own posts excluded; fallback if empty)
+const disco = filterDiscoveryFeed(posts, [B], A);
+assert.deepEqual(disco.map((p) => p.id), ["3", "4"]);
+const onlyFollowed = [
+  { id: "1", authorId: A, text: "mine" },
+  { id: "2", authorId: B, text: "followed" },
+];
+assert.deepEqual(filterDiscoveryFeed(onlyFollowed, [B], A).map((p) => p.id), ["1", "2"]);
 
 // Notifications icons
 assert.equal(notificationIcon("user_follow"), "👀");

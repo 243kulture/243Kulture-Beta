@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "./lib/supabaseClient.js";
 import {
-  canFollow, filterSubscriptionFeed, isFollowing, mergeProfileMap, notificationIcon,
+  canFollow, filterDiscoveryFeed, filterSubscriptionFeed, isFollowing, mergeProfileMap, notificationIcon,
 } from "./lib/socialRules.js";
 import {
   I18N, LANG_LABELS, LANG_META, LANG_STORAGE_KEY, REQUIRED_CGU_VERSION,
@@ -11,6 +11,9 @@ import {
 import {
   canSubmitAuth, hasAcceptedRequiredVersion, redirectForGate, resolveEntryGate,
 } from "./lib/onboardingGate.js";
+import {
+  dismissDailyAction, getDailyActionKind, isDailyActionDismissed,
+} from "./lib/engagement.js";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
   Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
@@ -649,7 +652,10 @@ const NavBar = ({ screen, go, t }) => (
   <div className="navbar">
     <div className={`nav-item${screen === "home" ? " active" : ""}`} onClick={() => go("home")}><span className="nav-icon"><Home size={19} strokeWidth={2} /></span>{t.nav_home}</div>
     <div className={`nav-item${screen === "podcasts" || screen === "player" || screen === "articles" || screen === "article" ? " active" : ""}`} onClick={() => go("podcasts")}><span className="nav-icon"><Compass size={19} strokeWidth={2} /></span>{t.nav_discover}</div>
-    <div className="nav-item central" onClick={() => go("create")}><div className="nav-fab"><Plus size={22} strokeWidth={2.5} /></div></div>
+    <div className={`nav-item central${screen === "create" || screen === "storyCreate" ? " active" : ""}`} onClick={() => go("create")}>
+      <div className="nav-fab" aria-label={t.fab_label || t.create_title}><Plus size={22} strokeWidth={2.5} /></div>
+      <div className="nav-fab-label">{t.fab_label || t.create_title}</div>
+    </div>
     <div className={`nav-item${screen === "amis" || screen === "conversation" || screen === "userProfile" ? " active" : ""}`} onClick={() => go("amis")}><span className="nav-icon"><Users size={19} strokeWidth={2} /></span>{t.nav_comm}</div>
     <div className={`nav-item${screen === "profil" || screen === "social" ? " active" : ""}`} onClick={() => go("profil")}><span className="nav-icon"><User size={19} strokeWidth={2} /></span>{t.nav_prof}</div>
   </div>
@@ -721,8 +727,9 @@ export default function App() {
   const [debateVotes, setDebateVotes] = useState({}); // { debateId: optionIndex }
   const [debateReactions, setDebateReactions] = useState({}); // { debateId: emoji }
   const [friends, setFriends] = useState([]);
-  const [communityTab, setCommunityTab] = useState("amis"); // amis | abonnements | abonnes | decouvrir | feed | messages
-  const [feedMode, setFeedMode] = useState("pourtoi"); // pourtoi | abonnements
+  const [communityTab, setCommunityTab] = useState("feed"); // feed | amis | abonnements | abonnes | decouvrir | messages
+  const [feedMode, setFeedMode] = useState("abonnements"); // abonnements (primary) | pourtoi
+  const [dailyActionHidden, setDailyActionHidden] = useState(() => isDailyActionDismissed());
   const [followingUsers, setFollowingUsers] = useState([]);
   const [followerUsers, setFollowerUsers] = useState([]);
   const [communityProfiles, setCommunityProfiles] = useState({});
@@ -809,9 +816,35 @@ export default function App() {
   };
   const visibleFeedPosts = feedMode === "abonnements"
     ? filterSubscriptionFeed(posts, followingUsers, user?.id)
-    : posts;
+    : filterDiscoveryFeed(posts, followingUsers, user?.id);
   const followingProfiles = followingUsers.map((id) => communityProfiles[id]).filter(Boolean);
   const followerProfiles = followerUsers.map((id) => communityProfiles[id]).filter(Boolean);
+  const dailyActionKind = getDailyActionKind();
+  const showDailyAction = !dailyActionHidden;
+  const dailyActionCopy = dailyActionKind === "quiz"
+    ? { title: t.daily_action_quiz_title, sub: t.daily_action_quiz_sub, cta: t.daily_action_quiz_cta }
+    : dailyActionKind === "story"
+      ? { title: t.daily_action_story_title, sub: t.daily_action_story_sub, cta: t.daily_action_story_cta }
+      : dailyActionKind === "post"
+        ? { title: t.daily_action_post_title, sub: t.daily_action_post_sub, cta: t.daily_action_post_cta }
+        : { title: t.daily_action_follow_title, sub: t.daily_action_follow_sub, cta: t.daily_action_follow_cta };
+  const runDailyAction = () => {
+    if (dailyActionKind === "quiz") go("quiz");
+    else if (dailyActionKind === "story") {
+      if (!user) go("auth");
+      else openStoryCreate();
+    } else if (dailyActionKind === "post") {
+      if (!user) go("auth");
+      else { setCommunityTab("feed"); setFeedMode("abonnements"); go("amis"); }
+    } else {
+      setCommunityTab("decouvrir");
+      go("amis");
+    }
+  };
+  const hideDailyAction = () => {
+    dismissDailyAction();
+    setDailyActionHidden(true);
+  };
 
   const gate = resolveEntryGate({
     hasLanguage: Boolean(readStoredLang()),
@@ -1982,8 +2015,9 @@ export default function App() {
   return (
     <div className="app-outer" style={{ background: "radial-gradient(circle at 20% 0%,#16233a 0%,#0B0D12 55%)", display: "flex", justifyContent: "center", padding: "30px 0", minHeight: "100vh" }}>
       <style>{`
-        :root{ --blue:#1E5FA8; --red:#C8443C; --gold:#E8B84B; --green:#2E8B57; --bg:#0B0D12; --glass:rgba(255,255,255,0.06); --glass-border:rgba(255,255,255,0.12); --text:#F2F3F5; --muted:#9AA1AC; }
-        .k-app * { box-sizing:border-box; font-family:'Segoe UI',Arial,sans-serif; }
+        :root{ --blue:#1E5FA8; --red:#C8443C; --gold:#E8B84B; --green:#2E8B57; --bg:#0B0D12; --glass:rgba(255,255,255,0.06); --glass-border:rgba(255,255,255,0.12); --text:#F2F3F5; --muted:#9AA1AC; --font-body:'DM Sans',system-ui,sans-serif; --font-title:'Sora',system-ui,sans-serif; }
+        .k-app * { box-sizing:border-box; font-family:var(--font-body); }
+        .htitle, .hsub, .modal-title, .hero-title, .onb-title, .section-label, .card-title, .bit, .today-hero-title, .today-hero-badge, .artist-hero-name, .event-title, .timeline-period, .quiz-result .qscore, .story-section-title, .profile-stat .n, .ctitle, .friend-name, .post-name, .bento-card .bit, .empty-state .txt-title, .daily-action-title, .feed-mode-row .subtab { font-family:var(--font-title); }
         .phone { width:380px; height:780px; background:var(--bg); border-radius:42px; border:6px solid #1c1f26; box-shadow:0 20px 60px rgba(0,0,0,0.6); overflow:hidden; position:relative; display:flex; flex-direction:column; }
         .status { height:26px; flex-shrink:0; }
         .header { display:flex; align-items:center; gap:10px; padding:14px 16px 10px; flex-shrink:0; }
@@ -2083,6 +2117,21 @@ export default function App() {
         .empty-state { text-align:center; padding:60px 20px; color:var(--muted); }
         .empty-state .ic { font-size:38px; display:block; margin-bottom:10px; }
         .empty-state .txt { font-size:12.5px; }
+        .empty-state .txt-title { font-size:14.5px; font-weight:700; color:var(--text); margin-bottom:8px; }
+        .empty-state.feed-empty { padding:36px 16px 28px; }
+        .feed-empty-actions { display:flex; flex-direction:column; gap:8px; margin-top:16px; max-width:260px; margin-left:auto; margin-right:auto; }
+        .feed-empty-cta { border:1px solid var(--glass-border); background:var(--glass); color:var(--text); border-radius:12px; padding:11px 14px; font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-title); }
+        .feed-empty-cta.primary { background:linear-gradient(135deg,var(--blue),#163d6e); border-color:rgba(30,95,168,.55); color:#fff; }
+        .feed-empty-cta.secondary { color:var(--gold); border-color:rgba(232,184,75,.35); }
+        .daily-action { position:relative; margin-bottom:16px; padding:14px 14px 13px; border-radius:16px; background:linear-gradient(135deg,rgba(30,95,168,.22),rgba(200,68,60,.10) 55%,rgba(232,184,75,.12)); border:1px solid rgba(232,184,75,.28); }
+        .daily-action-label { font-size:9.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--gold); margin-bottom:6px; font-family:var(--font-title); }
+        .daily-action-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
+        .daily-action-sub { font-size:11.5px; color:var(--muted); line-height:1.45; margin-bottom:12px; }
+        .daily-action-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .daily-action-cta { border:0; background:var(--gold); color:#1a1200; border-radius:11px; padding:9px 13px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:var(--font-title); }
+        .daily-action-dismiss { border:0; background:transparent; color:var(--muted); font-size:11px; cursor:pointer; padding:8px 6px; }
+        .feed-mode-row .subtab.feed-primary { flex:1.15; }
+        .feed-mode-row .subtab.selected.feed-primary { box-shadow:0 0 0 1px rgba(232,184,75,.35); }
         .profile-avatar { width:74px; height:74px; border-radius:50%; margin:6px auto 10px; display:flex; align-items:center; justify-content:center; font-size:30px; background:linear-gradient(135deg,var(--blue),var(--green)); color:#fff; }
         .profile-name { text-align:center; font-size:15px; font-weight:700; color:var(--text); margin-bottom:2px; }
         .profile-sub { text-align:center; font-size:11px; color:var(--muted); margin-bottom:18px; }
@@ -2245,10 +2294,29 @@ export default function App() {
         .streak-pill { display:inline-flex; align-items:center; gap:5px; background:rgba(232,184,75,0.15); border:1px solid rgba(232,184,75,0.35);
           border-radius:20px; padding:4px 12px; font-size:11px; font-weight:700; color:var(--gold); margin-top:10px; }
         .nav-item.central { position:relative; }
-        .nav-fab { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--gold),#a97c1f); display:flex; align-items:center; justify-content:center;
-          color:#1a1200; margin:-20px auto 3px; box-shadow:0 6px 16px rgba(232,184,75,0.45); border:3px solid var(--bg); }
+        .nav-fab { width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg,var(--blue),var(--red) 55%,var(--gold)); display:flex; align-items:center; justify-content:center;
+          color:#fff; margin:-22px auto 2px; box-shadow:0 6px 16px rgba(30,95,168,0.35); border:3px solid var(--bg); }
+        .nav-fab-label { font-size:9px; font-weight:700; color:var(--gold); letter-spacing:.2px; font-family:var(--font-title); margin-top:1px; }
+        .nav-item.central.active .nav-fab-label { color:var(--gold); }
+        .create-hero { margin-bottom:14px; padding:16px; border-radius:16px; background:linear-gradient(135deg,rgba(30,95,168,.2),rgba(200,68,60,.08) 60%,rgba(232,184,75,.12)); border:1px solid rgba(232,184,75,.25); }
+        .create-hero-title { font-size:17px; font-weight:800; color:#fff; margin-bottom:6px; font-family:var(--font-title); }
+        .create-hero-sub { font-size:11.5px; color:var(--muted); line-height:1.45; }
+        .create-prompts-label { font-size:10.5px; color:var(--muted); margin:14px 0 8px; letter-spacing:.3px; }
+        .create-prompt-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+        .create-prompt-chip { border:1px solid var(--glass-border); background:var(--glass); color:var(--text); border-radius:999px; padding:7px 11px; font-size:11px; cursor:pointer; }
+        .create-prompt-chip:active { border-color:rgba(232,184,75,.45); }
+        .feed-mode-hint { font-size:11px; color:var(--muted); margin:-6px 0 12px; line-height:1.4; }
+        .subtab-row.community-tabs { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; gap:8px; padding-bottom:2px; }
+        .subtab-row.community-tabs::-webkit-scrollbar { display:none; }
+        .subtab-row.community-tabs .subtab { flex:0 0 auto; min-width:auto; padding:9px 12px; }
+        .home-vibe { margin-bottom:16px; padding:14px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-border); }
+        .home-vibe-title { font-size:13.5px; font-weight:700; color:var(--text); margin-bottom:4px; font-family:var(--font-title); }
+        .home-vibe-sub { font-size:11.5px; color:var(--muted); line-height:1.45; margin-bottom:12px; }
+        .home-vibe-row { display:flex; gap:8px; }
+        .home-vibe-cta { flex:1; text-align:center; border:1px solid var(--glass-border); background:rgba(30,95,168,.18); color:#fff; border-radius:12px; padding:10px 8px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:var(--font-title); }
+        .home-vibe-cta.secondary { background:rgba(232,184,75,.14); color:var(--gold); border-color:rgba(232,184,75,.35); }
         .create-sheet-opt { display:flex; align-items:center; gap:14px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:16px; margin-bottom:12px; cursor:pointer; }
-        .create-sheet-opt .cic { width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg,var(--gold),#a97c1f); display:flex; align-items:center; justify-content:center; color:#1a1200; flex-shrink:0; }
+        .create-sheet-opt .cic { width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg,var(--blue),var(--gold)); display:flex; align-items:center; justify-content:center; color:#fff; flex-shrink:0; }
         .create-sheet-opt .ctitle { font-size:14px; font-weight:700; color:#fff; margin-bottom:2px; }
         .create-sheet-opt .csub { font-size:11px; color:var(--muted); }
         .artist-list-card { display:flex; align-items:center; gap:12px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:14px; margin-bottom:10px; cursor:pointer; }
@@ -2276,7 +2344,7 @@ export default function App() {
         .timeline-track::before { content:''; position:absolute; left:8px; top:6px; bottom:6px; width:2px; background:var(--glass-border); }
         .timeline-item { position:relative; margin-bottom:22px; }
         .timeline-dot { position:absolute; left:-26px; top:2px; width:16px; height:16px; border-radius:50%; background:var(--gold); border:3px solid var(--bg); }
-        .timeline-period { font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--gold); letter-spacing:1px; margin-bottom:4px; }
+        .timeline-period { font-family:var(--font-title); font-size:22px; color:var(--gold); letter-spacing:1px; margin-bottom:4px; }
         .timeline-item-title { font-size:13.5px; font-weight:700; color:#fff; margin-bottom:6px; }
         .timeline-item-text { font-size:11.5px; color:var(--muted); line-height:1.6; }
         .collection-card { background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:16px; margin-bottom:12px; cursor:pointer; }
@@ -2332,6 +2400,7 @@ export default function App() {
         .subtab { flex:1 1 calc(33% - 6px); min-width:88px; text-align:center; padding:9px 6px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11px; cursor:pointer; color:var(--muted); font-weight:600; }
         .subtab.selected { background:var(--gold); color:#1a1200; border-color:var(--gold); }
         .feed-mode-row { display:flex; gap:8px; margin-bottom:14px; }
+        .feed-mode-row .subtab { flex:1; min-width:0; }
         .profile-stats-row { display:flex; gap:10px; justify-content:center; margin:14px 0 18px; }
         .profile-stat { flex:1; max-width:110px; text-align:center; background:var(--glass); border:1px solid var(--glass-border); border-radius:12px; padding:10px 6px; }
         .profile-stat .n { font-size:16px; font-weight:800; color:var(--gold); }
@@ -2681,6 +2750,33 @@ export default function App() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {showDailyAction && (
+                <div className="daily-action" data-kind={dailyActionKind}>
+                  <div className="daily-action-label">{t.daily_action_label}</div>
+                  <div className="daily-action-title">{dailyActionCopy.title}</div>
+                  <div className="daily-action-sub">{dailyActionCopy.sub}</div>
+                  <div className="note" style={{ marginBottom: 10 }}>{t.daily_action_optional_note}</div>
+                  <div className="daily-action-row">
+                    <button type="button" className="daily-action-cta" onClick={runDailyAction}>{dailyActionCopy.cta}</button>
+                    <button type="button" className="daily-action-dismiss" onClick={hideDailyAction}>{t.daily_action_dismiss}</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="home-vibe">
+                <div className="home-vibe-title">{t.home_vibe_title}</div>
+                <div className="home-vibe-sub">{t.home_vibe_sub}</div>
+                <div className="home-vibe-row">
+                  <button type="button" className="home-vibe-cta" onClick={() => (user ? openStoryCreate() : go("auth"))}>{t.home_vibe_story}</button>
+                  <button type="button" className="home-vibe-cta secondary" onClick={() => {
+                    if (!user) { go("auth"); return; }
+                    setCommunityTab("feed");
+                    setFeedMode("abonnements");
+                    go("amis");
+                  }}>{t.home_vibe_post}</button>
                 </div>
               </div>
 
@@ -3355,13 +3451,38 @@ export default function App() {
                 <div className="empty-state"><span className="ic">🔒</span><div className="txt">{t.create_locked}</div></div>
               ) : (
                 <>
+                  <div className="create-hero">
+                    <div className="create-hero-title">{t.create_hero_title}</div>
+                    <div className="create-hero-sub">{t.create_hero_sub}</div>
+                  </div>
                   <div className="create-sheet-opt" onClick={openStoryCreate}>
                     <div className="cic"><ImageIcon size={22} strokeWidth={2} /></div>
                     <div><div className="ctitle">{t.create_story}</div><div className="csub">{t.create_story_sub}</div></div>
                   </div>
-                  <div className="create-sheet-opt" onClick={() => { setCommunityTab("feed"); go("amis"); }}>
+                  <div className="create-sheet-opt" onClick={() => {
+                    setNewPost("");
+                    setCommunityTab("feed");
+                    setFeedMode("abonnements");
+                    go("amis");
+                  }}>
                     <div className="cic"><MessageCircle size={22} strokeWidth={2} /></div>
                     <div><div className="ctitle">{t.create_post}</div><div className="csub">{t.create_post_sub}</div></div>
+                  </div>
+                  <div className="create-prompts-label">{t.create_prompts_optional}</div>
+                  <div className="create-prompt-row">
+                    {[t.create_prompt_1, t.create_prompt_2, t.create_prompt_3].filter(Boolean).map((prompt) => (
+                      <button
+                        type="button"
+                        key={prompt}
+                        className="create-prompt-chip"
+                        onClick={() => {
+                          setNewPost(prompt);
+                          setCommunityTab("feed");
+                          setFeedMode("abonnements");
+                          go("amis");
+                        }}
+                      >{prompt}</button>
+                    ))}
                   </div>
                 </>
               )}
@@ -3504,12 +3625,12 @@ export default function App() {
                 <div className="empty-state"><span className="ic">🔒</span><div className="txt">{t.comm_locked}</div></div>
               ) : (
                 <>
-                  <div className="subtab-row">
-                    <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
+                  <div className="subtab-row community-tabs">
+                    <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
                     <div className={`subtab${communityTab === "abonnements" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnements")}>{t.tab_following}</div>
+                    <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
                     <div className={`subtab${communityTab === "abonnes" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnes")}>{t.tab_followers}</div>
                     <div className={`subtab${communityTab === "decouvrir" ? " selected" : ""}`} onClick={() => setCommunityTab("decouvrir")}>{t.tab_discover_people}</div>
-                    <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
                     <div className={`subtab${communityTab === "messages" ? " selected" : ""}`} onClick={() => setCommunityTab("messages")}>{t.tab_messages}</div>
                   </div>
 
@@ -3660,9 +3781,10 @@ export default function App() {
                   {communityTab === "feed" && (
                     <>
                       <div className="feed-mode-row">
+                        <div className={`subtab feed-primary${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
                         <div className={`subtab${feedMode === "pourtoi" ? " selected" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</div>
-                        <div className={`subtab${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
                       </div>
+                      <div className="feed-mode-hint">{feedMode === "abonnements" ? t.feed_mode_subs_hint : t.feed_mode_foryou_hint}</div>
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
                           onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
@@ -3671,7 +3793,16 @@ export default function App() {
                       </div>
                       {postMediaPreview && <div className="post-media-preview">{postMediaType === "video" ? <video src={postMediaPreview} controls /> : <img src={postMediaPreview} alt="" />}<button onClick={() => { setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null); }}><X size={14}/></button></div>}
                       {feedMode === "abonnements" && visibleFeedPosts.length === 0 && (
-                        <div className="empty-state"><span className="ic">👀</span><div className="txt">{t.feed_subs_empty}</div></div>
+                        <div className="empty-state feed-empty">
+                          <span className="ic">👀</span>
+                          <div className="txt-title">{t.feed_subs_empty_title}</div>
+                          <div className="txt">{t.feed_subs_empty_sub || t.feed_subs_empty}</div>
+                          <div className="feed-empty-actions">
+                            <button type="button" className="feed-empty-cta primary" onClick={() => go("create")}>{t.feed_subs_empty_post || t.create_post}</button>
+                            <button type="button" className="feed-empty-cta" onClick={() => setCommunityTab("decouvrir")}>{t.feed_subs_empty_discover}</button>
+                            <button type="button" className="feed-empty-cta secondary" onClick={() => setFeedMode("pourtoi")}>{t.feed_subs_empty_foryou}</button>
+                          </div>
+                        </div>
                       )}
                       {visibleFeedPosts.map((p) => {
                         const comments = commentsByPost[p.id] || [];
