@@ -2060,6 +2060,8 @@ export default function App() {
         .toggle-row { display:flex; gap:8px; margin-bottom:14px; }
         .toggle-btn { flex:1; text-align:center; padding:9px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11.5px; cursor:pointer; color:var(--text); }
         .toggle-btn.selected { background:var(--gold); color:#1a1200; font-weight:700; border-color:var(--gold); }
+        /* Gate continue CTAs: never stretch in tall onb-screen flex column */
+        .gate-continue { flex:0 0 auto; align-self:center; width:100%; max-width:420px; margin:0 auto; padding:12px 14px; box-sizing:border-box; }
         .video-frame { width:100%; height:190px; border-radius:16px; margin-bottom:16px; border:1px solid var(--glass-border); overflow:hidden; background:linear-gradient(135deg,#0e1420,#1a2436); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12.5px; }
         .note { font-size:10.5px; color:var(--muted); }
         .gold-dot { color:var(--gold); }
@@ -2143,6 +2145,10 @@ export default function App() {
         .legal-tabs { display:flex; gap:8px; margin-bottom:16px; }
         .onb-screen { height:100%; display:flex; flex-direction:column; justify-content:flex-end; padding:32px 24px 30px;
           background:radial-gradient(circle at 50% 0%, rgba(30,95,168,0.35), transparent 55%), linear-gradient(180deg, transparent 40%, var(--bg) 90%), var(--bg); position:relative; }
+        .onb-screen.gate-screen { justify-content:center; align-items:center; padding-top:120px; }
+        .onb-screen.gate-screen .consent-row,
+        .onb-screen.gate-screen .legal-tabs,
+        .onb-screen.gate-screen .legal-body { width:100%; max-width:420px; margin-left:auto; margin-right:auto; }
         .onb-logo-row { position:absolute; top:60px; left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:14px; }
         .onb-title { font-size:22px; font-weight:800; color:#fff; text-align:center; margin-bottom:8px; line-height:1.3; }
         .onb-sub { font-size:12.5px; color:var(--muted); text-align:center; line-height:1.6; max-width:280px; margin:0 auto 28px; }
@@ -2389,7 +2395,7 @@ export default function App() {
 
         {/* GATE 1 — Language picker (mandatory, original app logo) */}
         {screen === "languagePicker" && (
-          <div className="onb-screen">
+          <div className="onb-screen gate-screen">
             <div className="onb-logo-row"><Logo size={130} /></div>
             <div className="onb-title">{t.lang_picker_title}</div>
             <div className="onb-sub">{t.lang_picker_sub}</div>
@@ -2412,8 +2418,8 @@ export default function App() {
             {isProvisionalLang(langDraft) && <div className="note" style={{ textAlign: "center", marginBottom: 10 }}>{t.provisional_note}</div>}
             {authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center" }}>{authMessage}</div>}
             <div
-              className="toggle-btn selected"
-              style={{ opacity: langDraft ? 1 : 0.45, pointerEvents: langDraft ? "auto" : "none", maxWidth: 420, width: "100%" }}
+              className="toggle-btn selected gate-continue"
+              style={{ opacity: langDraft ? 1 : 0.45, pointerEvents: langDraft ? "auto" : "none" }}
               onClick={async () => {
                 if (!langDraft) { setAuthMessage(t.lang_picker_required); return; }
                 await applyLanguage(langDraft);
@@ -2428,7 +2434,7 @@ export default function App() {
 
         {/* GATE 2 — CGU / privacy info + explicit CGU checkbox */}
         {screen === "termsGate" && (
-          <div className="onb-screen">
+          <div className="onb-screen gate-screen">
             <div className="onb-logo-row"><Logo size={110} /></div>
             <div className="onb-title">{t.terms_gate_title}</div>
             <div className="onb-sub">{t.terms_gate_sub}</div>
@@ -2460,8 +2466,8 @@ export default function App() {
             {authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center" }}>{authMessage}</div>}
             {!cguChecked && !authMessage && <div className="note" style={{ color: "var(--red)", textAlign: "center" }}>{t.terms_must_accept}</div>}
             <div
-              className="toggle-btn selected"
-              style={{ opacity: cguChecked ? 1 : 0.45, pointerEvents: cguChecked ? "auto" : "none", maxWidth: 420, width: "100%" }}
+              className="toggle-btn selected gate-continue"
+              style={{ opacity: cguChecked ? 1 : 0.45, pointerEvents: cguChecked ? "auto" : "none" }}
               onClick={async () => {
                 if (!cguChecked) { setAuthMessage(t.terms_must_accept); return; }
                 if (user?.id && !String(user.id).startsWith("demo-")) {
