@@ -11,6 +11,9 @@ import {
 import {
   canSubmitAuth, hasAcceptedRequiredVersion, redirectForGate, resolveEntryGate,
 } from "./lib/onboardingGate.js";
+import {
+  dismissDailyAction, getDailyActionKind, isDailyActionDismissed,
+} from "./lib/engagement.js";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
   Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
@@ -721,8 +724,9 @@ export default function App() {
   const [debateVotes, setDebateVotes] = useState({}); // { debateId: optionIndex }
   const [debateReactions, setDebateReactions] = useState({}); // { debateId: emoji }
   const [friends, setFriends] = useState([]);
-  const [communityTab, setCommunityTab] = useState("amis"); // amis | abonnements | abonnes | decouvrir | feed | messages
-  const [feedMode, setFeedMode] = useState("pourtoi"); // pourtoi | abonnements
+  const [communityTab, setCommunityTab] = useState("feed"); // feed | amis | abonnements | abonnes | decouvrir | messages
+  const [feedMode, setFeedMode] = useState("abonnements"); // abonnements (primary) | pourtoi
+  const [dailyActionHidden, setDailyActionHidden] = useState(() => isDailyActionDismissed());
   const [followingUsers, setFollowingUsers] = useState([]);
   const [followerUsers, setFollowerUsers] = useState([]);
   const [communityProfiles, setCommunityProfiles] = useState({});
@@ -812,6 +816,27 @@ export default function App() {
     : posts;
   const followingProfiles = followingUsers.map((id) => communityProfiles[id]).filter(Boolean);
   const followerProfiles = followerUsers.map((id) => communityProfiles[id]).filter(Boolean);
+  const dailyActionKind = getDailyActionKind();
+  const showDailyAction = !dailyActionHidden;
+  const dailyActionCopy = dailyActionKind === "quiz"
+    ? { title: t.daily_action_quiz_title, sub: t.daily_action_quiz_sub, cta: t.daily_action_quiz_cta }
+    : dailyActionKind === "story"
+      ? { title: t.daily_action_story_title, sub: t.daily_action_story_sub, cta: t.daily_action_story_cta }
+      : { title: t.daily_action_follow_title, sub: t.daily_action_follow_sub, cta: t.daily_action_follow_cta };
+  const runDailyAction = () => {
+    if (dailyActionKind === "quiz") go("quiz");
+    else if (dailyActionKind === "story") {
+      if (!user) go("auth");
+      else openStoryCreate();
+    } else {
+      setCommunityTab("decouvrir");
+      go("amis");
+    }
+  };
+  const hideDailyAction = () => {
+    dismissDailyAction();
+    setDailyActionHidden(true);
+  };
 
   const gate = resolveEntryGate({
     hasLanguage: Boolean(readStoredLang()),
@@ -1982,8 +2007,9 @@ export default function App() {
   return (
     <div className="app-outer" style={{ background: "radial-gradient(circle at 20% 0%,#16233a 0%,#0B0D12 55%)", display: "flex", justifyContent: "center", padding: "30px 0", minHeight: "100vh" }}>
       <style>{`
-        :root{ --blue:#1E5FA8; --red:#C8443C; --gold:#E8B84B; --green:#2E8B57; --bg:#0B0D12; --glass:rgba(255,255,255,0.06); --glass-border:rgba(255,255,255,0.12); --text:#F2F3F5; --muted:#9AA1AC; }
-        .k-app * { box-sizing:border-box; font-family:'Segoe UI',Arial,sans-serif; }
+        :root{ --blue:#1E5FA8; --red:#C8443C; --gold:#E8B84B; --green:#2E8B57; --bg:#0B0D12; --glass:rgba(255,255,255,0.06); --glass-border:rgba(255,255,255,0.12); --text:#F2F3F5; --muted:#9AA1AC; --font-body:'DM Sans',system-ui,sans-serif; --font-title:'Sora',system-ui,sans-serif; }
+        .k-app * { box-sizing:border-box; font-family:var(--font-body); }
+        .htitle, .hsub, .modal-title, .hero-title, .onb-title, .section-label, .card-title, .bit, .today-hero-title, .today-hero-badge, .artist-hero-name, .event-title, .timeline-period, .quiz-result .qscore, .story-section-title, .profile-stat .n, .ctitle, .friend-name, .post-name, .bento-card .bit, .empty-state .txt-title, .daily-action-title, .feed-mode-row .subtab { font-family:var(--font-title); }
         .phone { width:380px; height:780px; background:var(--bg); border-radius:42px; border:6px solid #1c1f26; box-shadow:0 20px 60px rgba(0,0,0,0.6); overflow:hidden; position:relative; display:flex; flex-direction:column; }
         .status { height:26px; flex-shrink:0; }
         .header { display:flex; align-items:center; gap:10px; padding:14px 16px 10px; flex-shrink:0; }
@@ -2083,6 +2109,21 @@ export default function App() {
         .empty-state { text-align:center; padding:60px 20px; color:var(--muted); }
         .empty-state .ic { font-size:38px; display:block; margin-bottom:10px; }
         .empty-state .txt { font-size:12.5px; }
+        .empty-state .txt-title { font-size:14.5px; font-weight:700; color:var(--text); margin-bottom:8px; }
+        .empty-state.feed-empty { padding:36px 16px 28px; }
+        .feed-empty-actions { display:flex; flex-direction:column; gap:8px; margin-top:16px; max-width:260px; margin-left:auto; margin-right:auto; }
+        .feed-empty-cta { border:1px solid var(--glass-border); background:var(--glass); color:var(--text); border-radius:12px; padding:11px 14px; font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font-title); }
+        .feed-empty-cta.primary { background:linear-gradient(135deg,var(--blue),#163d6e); border-color:rgba(30,95,168,.55); color:#fff; }
+        .feed-empty-cta.secondary { color:var(--gold); border-color:rgba(232,184,75,.35); }
+        .daily-action { position:relative; margin-bottom:16px; padding:14px 14px 13px; border-radius:16px; background:linear-gradient(135deg,rgba(30,95,168,.22),rgba(200,68,60,.10) 55%,rgba(232,184,75,.12)); border:1px solid rgba(232,184,75,.28); }
+        .daily-action-label { font-size:9.5px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--gold); margin-bottom:6px; font-family:var(--font-title); }
+        .daily-action-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
+        .daily-action-sub { font-size:11.5px; color:var(--muted); line-height:1.45; margin-bottom:12px; }
+        .daily-action-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .daily-action-cta { border:0; background:var(--gold); color:#1a1200; border-radius:11px; padding:9px 13px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:var(--font-title); }
+        .daily-action-dismiss { border:0; background:transparent; color:var(--muted); font-size:11px; cursor:pointer; padding:8px 6px; }
+        .feed-mode-row .subtab.feed-primary { flex:1.15; }
+        .feed-mode-row .subtab.selected.feed-primary { box-shadow:0 0 0 1px rgba(232,184,75,.35); }
         .profile-avatar { width:74px; height:74px; border-radius:50%; margin:6px auto 10px; display:flex; align-items:center; justify-content:center; font-size:30px; background:linear-gradient(135deg,var(--blue),var(--green)); color:#fff; }
         .profile-name { text-align:center; font-size:15px; font-weight:700; color:var(--text); margin-bottom:2px; }
         .profile-sub { text-align:center; font-size:11px; color:var(--muted); margin-bottom:18px; }
@@ -2276,7 +2317,7 @@ export default function App() {
         .timeline-track::before { content:''; position:absolute; left:8px; top:6px; bottom:6px; width:2px; background:var(--glass-border); }
         .timeline-item { position:relative; margin-bottom:22px; }
         .timeline-dot { position:absolute; left:-26px; top:2px; width:16px; height:16px; border-radius:50%; background:var(--gold); border:3px solid var(--bg); }
-        .timeline-period { font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--gold); letter-spacing:1px; margin-bottom:4px; }
+        .timeline-period { font-family:var(--font-title); font-size:22px; color:var(--gold); letter-spacing:1px; margin-bottom:4px; }
         .timeline-item-title { font-size:13.5px; font-weight:700; color:#fff; margin-bottom:6px; }
         .timeline-item-text { font-size:11.5px; color:var(--muted); line-height:1.6; }
         .collection-card { background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:16px; margin-bottom:12px; cursor:pointer; }
@@ -2332,6 +2373,7 @@ export default function App() {
         .subtab { flex:1 1 calc(33% - 6px); min-width:88px; text-align:center; padding:9px 6px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11px; cursor:pointer; color:var(--muted); font-weight:600; }
         .subtab.selected { background:var(--gold); color:#1a1200; border-color:var(--gold); }
         .feed-mode-row { display:flex; gap:8px; margin-bottom:14px; }
+        .feed-mode-row .subtab { flex:1; min-width:0; }
         .profile-stats-row { display:flex; gap:10px; justify-content:center; margin:14px 0 18px; }
         .profile-stat { flex:1; max-width:110px; text-align:center; background:var(--glass); border:1px solid var(--glass-border); border-radius:12px; padding:10px 6px; }
         .profile-stat .n { font-size:16px; font-weight:800; color:var(--gold); }
@@ -2683,6 +2725,18 @@ export default function App() {
                   })}
                 </div>
               </div>
+
+              {showDailyAction && (
+                <div className="daily-action" data-kind={dailyActionKind}>
+                  <div className="daily-action-label">{t.daily_action_label}</div>
+                  <div className="daily-action-title">{dailyActionCopy.title}</div>
+                  <div className="daily-action-sub">{dailyActionCopy.sub}</div>
+                  <div className="daily-action-row">
+                    <button type="button" className="daily-action-cta" onClick={runDailyAction}>{dailyActionCopy.cta}</button>
+                    <button type="button" className="daily-action-dismiss" onClick={hideDailyAction}>{t.daily_action_dismiss}</button>
+                  </div>
+                </div>
+              )}
 
               <div className="today-section" style={{ marginBottom: 18 }}>
                 <div className="tsl">✨ {t.foryou_title}</div>
@@ -3505,11 +3559,11 @@ export default function App() {
               ) : (
                 <>
                   <div className="subtab-row">
-                    <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
+                    <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
                     <div className={`subtab${communityTab === "abonnements" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnements")}>{t.tab_following}</div>
+                    <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
                     <div className={`subtab${communityTab === "abonnes" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnes")}>{t.tab_followers}</div>
                     <div className={`subtab${communityTab === "decouvrir" ? " selected" : ""}`} onClick={() => setCommunityTab("decouvrir")}>{t.tab_discover_people}</div>
-                    <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
                     <div className={`subtab${communityTab === "messages" ? " selected" : ""}`} onClick={() => setCommunityTab("messages")}>{t.tab_messages}</div>
                   </div>
 
@@ -3660,8 +3714,8 @@ export default function App() {
                   {communityTab === "feed" && (
                     <>
                       <div className="feed-mode-row">
+                        <div className={`subtab feed-primary${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
                         <div className={`subtab${feedMode === "pourtoi" ? " selected" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</div>
-                        <div className={`subtab${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
                       </div>
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
@@ -3671,7 +3725,15 @@ export default function App() {
                       </div>
                       {postMediaPreview && <div className="post-media-preview">{postMediaType === "video" ? <video src={postMediaPreview} controls /> : <img src={postMediaPreview} alt="" />}<button onClick={() => { setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null); }}><X size={14}/></button></div>}
                       {feedMode === "abonnements" && visibleFeedPosts.length === 0 && (
-                        <div className="empty-state"><span className="ic">👀</span><div className="txt">{t.feed_subs_empty}</div></div>
+                        <div className="empty-state feed-empty">
+                          <span className="ic">👀</span>
+                          <div className="txt-title">{t.feed_subs_empty_title}</div>
+                          <div className="txt">{t.feed_subs_empty_sub || t.feed_subs_empty}</div>
+                          <div className="feed-empty-actions">
+                            <button type="button" className="feed-empty-cta primary" onClick={() => setCommunityTab("decouvrir")}>{t.feed_subs_empty_discover}</button>
+                            <button type="button" className="feed-empty-cta secondary" onClick={() => setFeedMode("pourtoi")}>{t.feed_subs_empty_foryou}</button>
+                          </div>
+                        </div>
                       )}
                       {visibleFeedPosts.map((p) => {
                         const comments = commentsByPost[p.id] || [];
