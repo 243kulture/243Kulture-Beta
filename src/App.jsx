@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, isSupabaseConfigured } from "./lib/supabaseClient.js";
 import {
-  canFollow, filterSubscriptionFeed, isFollowing, mergeProfileMap, notificationIcon,
+  canFollow, filterDiscoveryFeed, filterSubscriptionFeed, isFollowing, mergeProfileMap, notificationIcon,
 } from "./lib/socialRules.js";
 import {
   I18N, LANG_LABELS, LANG_META, LANG_STORAGE_KEY, REQUIRED_CGU_VERSION,
@@ -816,7 +816,7 @@ export default function App() {
   };
   const visibleFeedPosts = feedMode === "abonnements"
     ? filterSubscriptionFeed(posts, followingUsers, user?.id)
-    : posts;
+    : filterDiscoveryFeed(posts, followingUsers, user?.id);
   const followingProfiles = followingUsers.map((id) => communityProfiles[id]).filter(Boolean);
   const followerProfiles = followerUsers.map((id) => communityProfiles[id]).filter(Boolean);
   const dailyActionKind = getDailyActionKind();
@@ -2298,12 +2298,17 @@ export default function App() {
           color:#fff; margin:-22px auto 2px; box-shadow:0 6px 16px rgba(30,95,168,0.35); border:3px solid var(--bg); }
         .nav-fab-label { font-size:9px; font-weight:700; color:var(--gold); letter-spacing:.2px; font-family:var(--font-title); margin-top:1px; }
         .nav-item.central.active .nav-fab-label { color:var(--gold); }
-        .create-hero { margin-bottom:16px; padding:16px; border-radius:16px; background:linear-gradient(135deg,rgba(30,95,168,.2),rgba(200,68,60,.08) 60%,rgba(232,184,75,.12)); border:1px solid rgba(232,184,75,.25); }
+        .create-hero { margin-bottom:14px; padding:16px; border-radius:16px; background:linear-gradient(135deg,rgba(30,95,168,.2),rgba(200,68,60,.08) 60%,rgba(232,184,75,.12)); border:1px solid rgba(232,184,75,.25); }
         .create-hero-title { font-size:17px; font-weight:800; color:#fff; margin-bottom:6px; font-family:var(--font-title); }
         .create-hero-sub { font-size:11.5px; color:var(--muted); line-height:1.45; }
-        .create-prompt-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+        .create-prompts-label { font-size:10.5px; color:var(--muted); margin:14px 0 8px; letter-spacing:.3px; }
+        .create-prompt-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
         .create-prompt-chip { border:1px solid var(--glass-border); background:var(--glass); color:var(--text); border-radius:999px; padding:7px 11px; font-size:11px; cursor:pointer; }
         .create-prompt-chip:active { border-color:rgba(232,184,75,.45); }
+        .feed-mode-hint { font-size:11px; color:var(--muted); margin:-6px 0 12px; line-height:1.4; }
+        .subtab-row.community-tabs { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; gap:8px; padding-bottom:2px; }
+        .subtab-row.community-tabs::-webkit-scrollbar { display:none; }
+        .subtab-row.community-tabs .subtab { flex:0 0 auto; min-width:auto; padding:9px 12px; }
         .home-vibe { margin-bottom:16px; padding:14px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-border); }
         .home-vibe-title { font-size:13.5px; font-weight:700; color:var(--text); margin-bottom:4px; font-family:var(--font-title); }
         .home-vibe-sub { font-size:11.5px; color:var(--muted); line-height:1.45; margin-bottom:12px; }
@@ -2753,6 +2758,7 @@ export default function App() {
                   <div className="daily-action-label">{t.daily_action_label}</div>
                   <div className="daily-action-title">{dailyActionCopy.title}</div>
                   <div className="daily-action-sub">{dailyActionCopy.sub}</div>
+                  <div className="note" style={{ marginBottom: 10 }}>{t.daily_action_optional_note}</div>
                   <div className="daily-action-row">
                     <button type="button" className="daily-action-cta" onClick={runDailyAction}>{dailyActionCopy.cta}</button>
                     <button type="button" className="daily-action-dismiss" onClick={hideDailyAction}>{t.daily_action_dismiss}</button>
@@ -3449,6 +3455,20 @@ export default function App() {
                     <div className="create-hero-title">{t.create_hero_title}</div>
                     <div className="create-hero-sub">{t.create_hero_sub}</div>
                   </div>
+                  <div className="create-sheet-opt" onClick={openStoryCreate}>
+                    <div className="cic"><ImageIcon size={22} strokeWidth={2} /></div>
+                    <div><div className="ctitle">{t.create_story}</div><div className="csub">{t.create_story_sub}</div></div>
+                  </div>
+                  <div className="create-sheet-opt" onClick={() => {
+                    setNewPost("");
+                    setCommunityTab("feed");
+                    setFeedMode("abonnements");
+                    go("amis");
+                  }}>
+                    <div className="cic"><MessageCircle size={22} strokeWidth={2} /></div>
+                    <div><div className="ctitle">{t.create_post}</div><div className="csub">{t.create_post_sub}</div></div>
+                  </div>
+                  <div className="create-prompts-label">{t.create_prompts_optional}</div>
                   <div className="create-prompt-row">
                     {[t.create_prompt_1, t.create_prompt_2, t.create_prompt_3].filter(Boolean).map((prompt) => (
                       <button
@@ -3463,14 +3483,6 @@ export default function App() {
                         }}
                       >{prompt}</button>
                     ))}
-                  </div>
-                  <div className="create-sheet-opt" onClick={openStoryCreate}>
-                    <div className="cic"><ImageIcon size={22} strokeWidth={2} /></div>
-                    <div><div className="ctitle">{t.create_story}</div><div className="csub">{t.create_story_sub}</div></div>
-                  </div>
-                  <div className="create-sheet-opt" onClick={() => { setCommunityTab("feed"); setFeedMode("abonnements"); go("amis"); }}>
-                    <div className="cic"><MessageCircle size={22} strokeWidth={2} /></div>
-                    <div><div className="ctitle">{t.create_post}</div><div className="csub">{t.create_post_sub}</div></div>
                   </div>
                 </>
               )}
@@ -3613,7 +3625,7 @@ export default function App() {
                 <div className="empty-state"><span className="ic">🔒</span><div className="txt">{t.comm_locked}</div></div>
               ) : (
                 <>
-                  <div className="subtab-row">
+                  <div className="subtab-row community-tabs">
                     <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
                     <div className={`subtab${communityTab === "abonnements" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnements")}>{t.tab_following}</div>
                     <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
@@ -3772,6 +3784,7 @@ export default function App() {
                         <div className={`subtab feed-primary${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
                         <div className={`subtab${feedMode === "pourtoi" ? " selected" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</div>
                       </div>
+                      <div className="feed-mode-hint">{feedMode === "abonnements" ? t.feed_mode_subs_hint : t.feed_mode_foryou_hint}</div>
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
                           onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />

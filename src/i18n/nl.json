@@ -322,5 +322,9 @@
   "auth_required_note": "Een account is verplicht om 243Kulture te gebruiken.",
   "auth_backend_required": "Configureer Supabase (.env) om een account aan te maken of in te loggen.",
   "gate_session_required": "Log in om deze sectie te openen.",
-  "provisional_note": "Voorlopige vertaling — te herzien door moedertaalsprekers."
+  "provisional_note": "Voorlopige vertaling — te herzien door moedertaalsprekers.",
+  "daily_action_optional_note": "Tip van vandaag — optioneel, geen druk om te publiceren.",
+  "create_prompts_optional": "Ideeën (optioneel) — je kunt vrij maken zonder ze te gebruiken.",
+  "feed_mode_subs_hint": "Abonnementen: berichten van accounts die je volgt.",
+  "feed_mode_foryou_hint": "Voor jou: ontdek nieuwe content en creators."
 }

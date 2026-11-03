@@ -323,5 +323,9 @@
   "home_vibe_title": "Ta vibe compte ici",
   "home_vibe_sub": "Story ou publication — culture & médias 243, sans pression.",
   "home_vibe_story": "Story",
-  "home_vibe_post": "Publication"
+  "home_vibe_post": "Publication",
+  "daily_action_optional_note": "Suggestion du jour — optionnelle, sans obligation de publier.",
+  "create_prompts_optional": "Idées (optionnel) — tu peux créer librement sans les utiliser.",
+  "feed_mode_subs_hint": "Abonnements : publications des comptes que tu suis.",
+  "feed_mode_foryou_hint": "Pour toi : découverte de contenus et créateurs."
 }

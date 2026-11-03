@@ -323,5 +323,9 @@
   "home_vibe_title": "Vibe yako ina nafasi hapa",
   "home_vibe_sub": "Story au post — utamaduni na media 243, bila shinikizo.",
   "home_vibe_story": "Story",
-  "home_vibe_post": "Chapisho"
+  "home_vibe_post": "Chapisho",
+  "daily_action_optional_note": "Pendekezo la leo — hiari, hakuna shinikizo ya kuchapisha.",
+  "create_prompts_optional": "Mawazo (si lazima) — unaweza kuunda kwa uhuru bila kuyatumia.",
+  "feed_mode_subs_hint": "Abonnements: chapisho kutoka kwa akaunti unazofuata.",
+  "feed_mode_foryou_hint": "Pour toi: gundua maudhui na waundaji wapya."
 }

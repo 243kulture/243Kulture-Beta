@@ -21,6 +21,21 @@ export function filterSubscriptionFeed(posts, followingIds, viewerId) {
   return (posts || []).filter((p) => p.authorId && allowed.has(p.authorId));
 }
 
+/**
+ * Filter posts for "Pour toi" discovery (authors you do not follow).
+ * Falls back to the full list when discovery would be empty so the mode never looks broken.
+ */
+export function filterDiscoveryFeed(posts, followingIds, viewerId) {
+  const following = new Set(followingIds || []);
+  const list = posts || [];
+  const discovered = list.filter((p) => {
+    if (!p.authorId) return true; // legacy/mock without author → discovery-friendly
+    if (viewerId && p.authorId === viewerId) return false;
+    return !following.has(p.authorId);
+  });
+  return discovered.length > 0 ? discovered : list;
+}
+
 /** Map notification type → icon glyph. */
 export function notificationIcon(type) {
   switch (type) {

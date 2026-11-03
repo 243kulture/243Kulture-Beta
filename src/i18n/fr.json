@@ -322,5 +322,9 @@
   "auth_required_note": "Un compte est obligatoire pour accéder à 243Kulture.",
   "auth_backend_required": "Configure Supabase (.env) pour créer un compte ou te connecter.",
   "gate_session_required": "Connecte-toi pour accéder à cette section.",
-  "provisional_note": "Traduction provisoire — à réviser par des locuteurs natifs."
+  "provisional_note": "Traduction provisoire — à réviser par des locuteurs natifs.",
+  "daily_action_optional_note": "Suggestion du jour — optionnelle, sans obligation de publier.",
+  "create_prompts_optional": "Idées (optionnel) — tu peux créer librement sans les utiliser.",
+  "feed_mode_subs_hint": "Abonnements : publications des comptes que tu suis.",
+  "feed_mode_foryou_hint": "Pour toi : découverte de contenus et créateurs."
 }
