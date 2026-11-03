@@ -3,7 +3,8 @@
  */
 
 export const DAILY_ACTION_DISMISS_KEY = "243kulture_daily_action_dismissed";
-export const DAILY_ACTION_KINDS = ["quiz", "story", "follow"];
+/** Creation-leaning soft rotation (story first energy). */
+export const DAILY_ACTION_KINDS = ["story", "post", "quiz"];
 
 /** Calendar day key YYYY-MM-DD in local time. */
 export function localDayKey(date = new Date()) {
@@ -13,7 +14,7 @@ export function localDayKey(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
-/** Stable soft rotation: quiz → story → follow, by local calendar day. */
+/** Stable soft rotation: story → post → quiz, by local calendar day. */
 export function getDailyActionKind(date = new Date()) {
   const utcDay = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
   return DAILY_ACTION_KINDS[((utcDay % 3) + 3) % 3];

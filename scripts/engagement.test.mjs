@@ -8,7 +8,7 @@ import {
   localDayKey,
 } from "../src/lib/engagement.js";
 
-assert.deepEqual(DAILY_ACTION_KINDS, ["quiz", "story", "follow"]);
+assert.deepEqual(DAILY_ACTION_KINDS, ["story", "post", "quiz"]);
 assert.match(localDayKey(new Date(2026, 10, 3)), /^\d{4}-\d{2}-\d{2}$/);
 assert.equal(localDayKey(new Date(2026, 0, 5)), "2026-01-05");
 

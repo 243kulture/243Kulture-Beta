@@ -652,7 +652,10 @@ const NavBar = ({ screen, go, t }) => (
   <div className="navbar">
     <div className={`nav-item${screen === "home" ? " active" : ""}`} onClick={() => go("home")}><span className="nav-icon"><Home size={19} strokeWidth={2} /></span>{t.nav_home}</div>
     <div className={`nav-item${screen === "podcasts" || screen === "player" || screen === "articles" || screen === "article" ? " active" : ""}`} onClick={() => go("podcasts")}><span className="nav-icon"><Compass size={19} strokeWidth={2} /></span>{t.nav_discover}</div>
-    <div className="nav-item central" onClick={() => go("create")}><div className="nav-fab"><Plus size={22} strokeWidth={2.5} /></div></div>
+    <div className={`nav-item central${screen === "create" || screen === "storyCreate" ? " active" : ""}`} onClick={() => go("create")}>
+      <div className="nav-fab" aria-label={t.fab_label || t.create_title}><Plus size={22} strokeWidth={2.5} /></div>
+      <div className="nav-fab-label">{t.fab_label || t.create_title}</div>
+    </div>
     <div className={`nav-item${screen === "amis" || screen === "conversation" || screen === "userProfile" ? " active" : ""}`} onClick={() => go("amis")}><span className="nav-icon"><Users size={19} strokeWidth={2} /></span>{t.nav_comm}</div>
     <div className={`nav-item${screen === "profil" || screen === "social" ? " active" : ""}`} onClick={() => go("profil")}><span className="nav-icon"><User size={19} strokeWidth={2} /></span>{t.nav_prof}</div>
   </div>
@@ -822,12 +825,17 @@ export default function App() {
     ? { title: t.daily_action_quiz_title, sub: t.daily_action_quiz_sub, cta: t.daily_action_quiz_cta }
     : dailyActionKind === "story"
       ? { title: t.daily_action_story_title, sub: t.daily_action_story_sub, cta: t.daily_action_story_cta }
-      : { title: t.daily_action_follow_title, sub: t.daily_action_follow_sub, cta: t.daily_action_follow_cta };
+      : dailyActionKind === "post"
+        ? { title: t.daily_action_post_title, sub: t.daily_action_post_sub, cta: t.daily_action_post_cta }
+        : { title: t.daily_action_follow_title, sub: t.daily_action_follow_sub, cta: t.daily_action_follow_cta };
   const runDailyAction = () => {
     if (dailyActionKind === "quiz") go("quiz");
     else if (dailyActionKind === "story") {
       if (!user) go("auth");
       else openStoryCreate();
+    } else if (dailyActionKind === "post") {
+      if (!user) go("auth");
+      else { setCommunityTab("feed"); setFeedMode("abonnements"); go("amis"); }
     } else {
       setCommunityTab("decouvrir");
       go("amis");
@@ -2286,10 +2294,24 @@ export default function App() {
         .streak-pill { display:inline-flex; align-items:center; gap:5px; background:rgba(232,184,75,0.15); border:1px solid rgba(232,184,75,0.35);
           border-radius:20px; padding:4px 12px; font-size:11px; font-weight:700; color:var(--gold); margin-top:10px; }
         .nav-item.central { position:relative; }
-        .nav-fab { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--gold),#a97c1f); display:flex; align-items:center; justify-content:center;
-          color:#1a1200; margin:-20px auto 3px; box-shadow:0 6px 16px rgba(232,184,75,0.45); border:3px solid var(--bg); }
+        .nav-fab { width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg,var(--blue),var(--red) 55%,var(--gold)); display:flex; align-items:center; justify-content:center;
+          color:#fff; margin:-22px auto 2px; box-shadow:0 6px 16px rgba(30,95,168,0.35); border:3px solid var(--bg); }
+        .nav-fab-label { font-size:9px; font-weight:700; color:var(--gold); letter-spacing:.2px; font-family:var(--font-title); margin-top:1px; }
+        .nav-item.central.active .nav-fab-label { color:var(--gold); }
+        .create-hero { margin-bottom:16px; padding:16px; border-radius:16px; background:linear-gradient(135deg,rgba(30,95,168,.2),rgba(200,68,60,.08) 60%,rgba(232,184,75,.12)); border:1px solid rgba(232,184,75,.25); }
+        .create-hero-title { font-size:17px; font-weight:800; color:#fff; margin-bottom:6px; font-family:var(--font-title); }
+        .create-hero-sub { font-size:11.5px; color:var(--muted); line-height:1.45; }
+        .create-prompt-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+        .create-prompt-chip { border:1px solid var(--glass-border); background:var(--glass); color:var(--text); border-radius:999px; padding:7px 11px; font-size:11px; cursor:pointer; }
+        .create-prompt-chip:active { border-color:rgba(232,184,75,.45); }
+        .home-vibe { margin-bottom:16px; padding:14px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-border); }
+        .home-vibe-title { font-size:13.5px; font-weight:700; color:var(--text); margin-bottom:4px; font-family:var(--font-title); }
+        .home-vibe-sub { font-size:11.5px; color:var(--muted); line-height:1.45; margin-bottom:12px; }
+        .home-vibe-row { display:flex; gap:8px; }
+        .home-vibe-cta { flex:1; text-align:center; border:1px solid var(--glass-border); background:rgba(30,95,168,.18); color:#fff; border-radius:12px; padding:10px 8px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:var(--font-title); }
+        .home-vibe-cta.secondary { background:rgba(232,184,75,.14); color:var(--gold); border-color:rgba(232,184,75,.35); }
         .create-sheet-opt { display:flex; align-items:center; gap:14px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:16px; margin-bottom:12px; cursor:pointer; }
-        .create-sheet-opt .cic { width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg,var(--gold),#a97c1f); display:flex; align-items:center; justify-content:center; color:#1a1200; flex-shrink:0; }
+        .create-sheet-opt .cic { width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg,var(--blue),var(--gold)); display:flex; align-items:center; justify-content:center; color:#fff; flex-shrink:0; }
         .create-sheet-opt .ctitle { font-size:14px; font-weight:700; color:#fff; margin-bottom:2px; }
         .create-sheet-opt .csub { font-size:11px; color:var(--muted); }
         .artist-list-card { display:flex; align-items:center; gap:12px; background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:14px; margin-bottom:10px; cursor:pointer; }
@@ -2737,6 +2759,20 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              <div className="home-vibe">
+                <div className="home-vibe-title">{t.home_vibe_title}</div>
+                <div className="home-vibe-sub">{t.home_vibe_sub}</div>
+                <div className="home-vibe-row">
+                  <button type="button" className="home-vibe-cta" onClick={() => (user ? openStoryCreate() : go("auth"))}>{t.home_vibe_story}</button>
+                  <button type="button" className="home-vibe-cta secondary" onClick={() => {
+                    if (!user) { go("auth"); return; }
+                    setCommunityTab("feed");
+                    setFeedMode("abonnements");
+                    go("amis");
+                  }}>{t.home_vibe_post}</button>
+                </div>
+              </div>
 
               <div className="today-section" style={{ marginBottom: 18 }}>
                 <div className="tsl">✨ {t.foryou_title}</div>
@@ -3409,11 +3445,30 @@ export default function App() {
                 <div className="empty-state"><span className="ic">🔒</span><div className="txt">{t.create_locked}</div></div>
               ) : (
                 <>
+                  <div className="create-hero">
+                    <div className="create-hero-title">{t.create_hero_title}</div>
+                    <div className="create-hero-sub">{t.create_hero_sub}</div>
+                  </div>
+                  <div className="create-prompt-row">
+                    {[t.create_prompt_1, t.create_prompt_2, t.create_prompt_3].filter(Boolean).map((prompt) => (
+                      <button
+                        type="button"
+                        key={prompt}
+                        className="create-prompt-chip"
+                        onClick={() => {
+                          setNewPost(prompt);
+                          setCommunityTab("feed");
+                          setFeedMode("abonnements");
+                          go("amis");
+                        }}
+                      >{prompt}</button>
+                    ))}
+                  </div>
                   <div className="create-sheet-opt" onClick={openStoryCreate}>
                     <div className="cic"><ImageIcon size={22} strokeWidth={2} /></div>
                     <div><div className="ctitle">{t.create_story}</div><div className="csub">{t.create_story_sub}</div></div>
                   </div>
-                  <div className="create-sheet-opt" onClick={() => { setCommunityTab("feed"); go("amis"); }}>
+                  <div className="create-sheet-opt" onClick={() => { setCommunityTab("feed"); setFeedMode("abonnements"); go("amis"); }}>
                     <div className="cic"><MessageCircle size={22} strokeWidth={2} /></div>
                     <div><div className="ctitle">{t.create_post}</div><div className="csub">{t.create_post_sub}</div></div>
                   </div>
@@ -3730,7 +3785,8 @@ export default function App() {
                           <div className="txt-title">{t.feed_subs_empty_title}</div>
                           <div className="txt">{t.feed_subs_empty_sub || t.feed_subs_empty}</div>
                           <div className="feed-empty-actions">
-                            <button type="button" className="feed-empty-cta primary" onClick={() => setCommunityTab("decouvrir")}>{t.feed_subs_empty_discover}</button>
+                            <button type="button" className="feed-empty-cta primary" onClick={() => go("create")}>{t.feed_subs_empty_post || t.create_post}</button>
+                            <button type="button" className="feed-empty-cta" onClick={() => setCommunityTab("decouvrir")}>{t.feed_subs_empty_discover}</button>
                             <button type="button" className="feed-empty-cta secondary" onClick={() => setFeedMode("pourtoi")}>{t.feed_subs_empty_foryou}</button>
                           </div>
                         </div>
