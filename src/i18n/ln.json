@@ -327,5 +327,12 @@
   "daily_action_optional_note": "Suggestion ya mokolo — optionnelle, obligation ya kobimisa te.",
   "create_prompts_optional": "Ba idées (optionnel) — okoki kokela librement sans kosalela yango.",
   "feed_mode_subs_hint": "Nalandaka : makomi ya ba comptes olandaka.",
-  "feed_mode_foryou_hint": "Mpo na yo : découverte ya ba contenus na ba créateurs."
+  "feed_mode_foryou_hint": "Mpo na yo : découverte ya ba contenus na ba créateurs.",
+  "story_open_camera": "Fungola caméra",
+  "story_open_video": "Kotia vidéo",
+  "story_from_gallery": "Pona na galerie",
+  "story_camera_title": "Zwa vibe na yo",
+  "story_camera_sub": "Photo liboso — look, danse, esika ya Kin to Bruxelles. Makomi ezali option.",
+  "story_video_title": "Kotia vibe na yo",
+  "story_video_sub": "Vidéo mokuse 24h — rumba, sape, quartier na yo. Sans pression."
 }

@@ -326,5 +326,12 @@
   "daily_action_optional_note": "Today’s suggestion — optional, no pressure to publish.",
   "create_prompts_optional": "Ideas (optional) — you can create freely without using them.",
   "feed_mode_subs_hint": "Following: posts from accounts you follow.",
-  "feed_mode_foryou_hint": "For you: discover new content and creators."
+  "feed_mode_foryou_hint": "For you: discover new content and creators.",
+  "story_open_camera": "Open camera",
+  "story_open_video": "Record video",
+  "story_from_gallery": "Choose from gallery",
+  "story_camera_title": "Capture your vibe",
+  "story_camera_sub": "Photo first — look, dance, a corner of Kin or Brussels. Text stays optional.",
+  "story_video_title": "Film your vibe",
+  "story_video_sub": "Short 24h video — rumba, sape, your block. No pressure."
 }

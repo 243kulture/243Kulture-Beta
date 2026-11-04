@@ -327,5 +327,12 @@
   "daily_action_optional_note": "Pendekezo la leo — hiari, hakuna shinikizo ya kuchapisha.",
   "create_prompts_optional": "Mawazo (si lazima) — unaweza kuunda kwa uhuru bila kuyatumia.",
   "feed_mode_subs_hint": "Abonnements: chapisho kutoka kwa akaunti unazofuata.",
-  "feed_mode_foryou_hint": "Pour toi: gundua maudhui na waundaji wapya."
+  "feed_mode_foryou_hint": "Pour toi: gundua maudhui na waundaji wapya.",
+  "story_open_camera": "Fungua kamera",
+  "story_open_video": "Rekodi video",
+  "story_from_gallery": "Chagua kutoka galeri",
+  "story_camera_title": "Nasa vibe yako",
+  "story_camera_sub": "Picha kwanza — look, dansi, kona ya Kin au Brussels. Maandishi ni hiari.",
+  "story_video_title": "Piga video vibe",
+  "story_video_sub": "Video fupi ya saa 24 — rumba, sape, mtaa wako. Bila shinikizo."
 }

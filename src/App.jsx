@@ -14,9 +14,10 @@ import {
 import {
   dismissDailyAction, getDailyActionKind, isDailyActionDismissed,
 } from "./lib/engagement.js";
+import { createStoryDraftReset, DEFAULT_STORY_DRAFT_TYPE } from "./lib/storyCreate.js";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
-  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
+  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Camera, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
 
 /*
  * ==========================================================================
@@ -780,7 +781,7 @@ export default function App() {
   const [seenStories, setSeenStories] = useState([]);
   const [activeStoryId, setActiveStoryId] = useState(null);
   const [storyProgress, setStoryProgress] = useState(0);
-  const [draftType, setDraftType] = useState("text"); // text | image | video
+  const [draftType, setDraftType] = useState(DEFAULT_STORY_DRAFT_TYPE); // image (camera-first) | video | text
   const [draftText, setDraftText] = useState("");
   const [draftColor, setDraftColor] = useState(STORY_COLORS[0]);
   const [draftMedia, setDraftMedia] = useState(null); // preview data URL
@@ -1905,10 +1906,20 @@ export default function App() {
     else dbInsert("event_attendance", { user_id: user?.id, event_id: id });
   };
 
+  const storyCameraInputRef = useRef(null);
   const openStoryCreate = () => {
     if (!user) return;
-    setDraftType("text"); setDraftText(""); setDraftMedia(null); setDraftFile(null); setDraftColor(STORY_COLORS[Math.floor(Math.random() * STORY_COLORS.length)]);
+    const reset = createStoryDraftReset(STORY_COLORS);
+    setDraftType(reset.draftType);
+    setDraftText(reset.draftText);
+    setDraftMedia(reset.draftMedia);
+    setDraftFile(reset.draftFile);
+    setDraftColor(reset.draftColor);
     go("storyCreate");
+    // Same user-gesture tick: open device camera / photo capture when the browser allows it.
+    queueMicrotask(() => {
+      try { storyCameraInputRef.current?.click(); } catch { /* ignore */ }
+    });
   };
   const handleMediaPick = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -2251,6 +2262,13 @@ export default function App() {
         .story-preview textarea { position:relative; z-index:2; width:100%; background:transparent; border:none; outline:none; resize:none; color:#fff; font-size:17px; font-weight:700; text-align:center; }
         .story-preview textarea::placeholder { color:rgba(255,255,255,0.7); }
         .story-upload-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; width:100%; height:100%; cursor:pointer; color:rgba(255,255,255,0.6); }
+        .story-camera-panel { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; width:100%; height:100%; text-align:center; padding:12px; }
+        .story-camera-panel .cam-title { font-family:var(--font-title); font-size:16px; font-weight:700; color:#fff; }
+        .story-camera-panel .cam-sub { font-size:11.5px; color:rgba(255,255,255,0.65); max-width:220px; line-height:1.35; }
+        .story-camera-cta { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 18px; border-radius:14px; background:linear-gradient(135deg,var(--blue),#163a66); border:1px solid rgba(232,184,75,0.55); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+        .story-camera-cta input { display:none; }
+        .story-gallery-link { font-size:11.5px; color:var(--gold); cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+        .story-gallery-link input { display:none; }
         .xp-card { background:linear-gradient(135deg,rgba(232,184,75,0.14),var(--glass)); border:1px solid var(--glass-border); border-radius:18px; padding:16px 18px; margin-bottom:18px; }
         .xp-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
         .xp-level-badge { display:flex; align-items:center; gap:8px; }
@@ -4013,14 +4031,14 @@ export default function App() {
               ) : (
                 <>
                   <div className="story-create-tabs">
-                    <div className={`story-type-btn${draftType === "text" ? " selected" : ""}`} onClick={() => { setDraftType("text"); setDraftMedia(null); setDraftFile(null); }}>
-                      <TypeIcon size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_text}</div>
-                    </div>
                     <div className={`story-type-btn${draftType === "image" ? " selected" : ""}`} onClick={() => { setDraftType("image"); setDraftMedia(null); setDraftFile(null); }}>
                       <ImageIcon size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_photo}</div>
                     </div>
                     <div className={`story-type-btn${draftType === "video" ? " selected" : ""}`} onClick={() => { setDraftType("video"); setDraftMedia(null); setDraftFile(null); }}>
                       <Video size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_video}</div>
+                    </div>
+                    <div className={`story-type-btn${draftType === "text" ? " selected" : ""}`} onClick={() => { setDraftType("text"); setDraftMedia(null); setDraftFile(null); }}>
+                      <TypeIcon size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_text}</div>
                     </div>
                   </div>
 
@@ -4032,26 +4050,54 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="story-preview" style={draftType === "text" ? { background: draftColor } : { background: "#111" }}>
+                  {/* Hidden capture input — clicked from openStoryCreate while user gesture is fresh */}
+                  <input
+                    ref={storyCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: "none" }}
+                    onChange={(e) => { setDraftType("image"); handleMediaPick(e); }}
+                  />
+
+                  <div className="story-preview" style={draftType === "text" ? { background: draftColor } : { background: "radial-gradient(circle at 30% 20%,#1a2a44 0%,#0b0d12 70%)" }}>
                     {draftType === "text" && (
                       <textarea rows={3} maxLength={120} placeholder={t.story_placeholder} value={draftText} onChange={(e) => setDraftText(e.target.value)} />
                     )}
                     {draftType === "image" && (
-                      draftMedia ? <img src={draftMedia} /> : (
-                        <label className="story-upload-btn">
-                          <ImageIcon size={30} strokeWidth={1.5} />
-                          <span style={{ fontSize: 11.5 }}>{t.story_choose_media}</span>
-                          <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleMediaPick} />
-                        </label>
+                      draftMedia ? <img src={draftMedia} alt="" /> : (
+                        <div className="story-camera-panel">
+                          <Camera size={34} strokeWidth={1.6} color="#E8B84B" />
+                          <div className="cam-title">{t.story_camera_title}</div>
+                          <div className="cam-sub">{t.story_camera_sub}</div>
+                          <label className="story-camera-cta">
+                            <Camera size={16} strokeWidth={2.2} />
+                            {t.story_open_camera}
+                            <input type="file" accept="image/*" capture="environment" onChange={handleMediaPick} />
+                          </label>
+                          <label className="story-gallery-link">
+                            {t.story_from_gallery}
+                            <input type="file" accept="image/*" onChange={handleMediaPick} />
+                          </label>
+                        </div>
                       )
                     )}
                     {draftType === "video" && (
                       draftMedia ? <video src={draftMedia} controls /> : (
-                        <label className="story-upload-btn">
-                          <Video size={30} strokeWidth={1.5} />
-                          <span style={{ fontSize: 11.5 }}>{t.story_choose_media}</span>
-                          <input type="file" accept="video/*" style={{ display: "none" }} onChange={handleMediaPick} />
-                        </label>
+                        <div className="story-camera-panel">
+                          <Video size={34} strokeWidth={1.6} color="#E8B84B" />
+                          <div className="cam-title">{t.story_video_title}</div>
+                          <div className="cam-sub">{t.story_video_sub}</div>
+                          <label className="story-camera-cta">
+                            <Video size={16} strokeWidth={2.2} />
+                            {t.story_open_video}
+                            <input type="file" accept="video/*" capture="environment" onChange={handleMediaPick} />
+                          </label>
+                          <label className="story-gallery-link">
+                            {t.story_from_gallery}
+                            <input type="file" accept="video/*" onChange={handleMediaPick} />
+                          </label>
+                        </div>
                       )
                     )}
                   </div>

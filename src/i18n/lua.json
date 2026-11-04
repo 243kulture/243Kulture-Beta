@@ -327,5 +327,12 @@
   "daily_action_optional_note": "Suggestion du jour — optionnelle, sans obligation de publier.",
   "create_prompts_optional": "Idées (optionnel) — tu peux créer librement sans les utiliser.",
   "feed_mode_subs_hint": "Abonnements : publications des comptes que tu suis.",
-  "feed_mode_foryou_hint": "Pour toi : découverte de contenus et créateurs."
+  "feed_mode_foryou_hint": "Pour toi : découverte de contenus et créateurs.",
+  "story_open_camera": "Fungola caméra",
+  "story_open_video": "Kotia vidéo",
+  "story_from_gallery": "Pona na galerie",
+  "story_camera_title": "Zwa vibe na yo",
+  "story_camera_sub": "Photo liboso — look, danse, esika ya Kin to Bruxelles. Makomi ezali option.",
+  "story_video_title": "Kotia vibe na yo",
+  "story_video_sub": "Vidéo mokuse 24h — rumba, sape, quartier na yo. Sans pression."
 }
