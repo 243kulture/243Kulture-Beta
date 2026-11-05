@@ -333,5 +333,14 @@
   "story_camera_title": "Capture ta vibe",
   "story_camera_sub": "Photo d’abord — look, danse, coin de Kin ou de Bruxelles. Le texte reste optionnel.",
   "story_video_title": "Filme ta vibe",
-  "story_video_sub": "Courte vidéo 24 h — rumba, sape, ton quartier. Sans pression."
+  "story_video_sub": "Courte vidéo 24 h — rumba, sape, ton quartier. Sans pression.",
+  "story_camera_starting": "Ouverture de la caméra…",
+  "story_camera_denied": "Permission caméra refusée. Tu peux choisir dans la galerie.",
+  "story_camera_nofound": "Aucune caméra trouvée. Utilise la galerie.",
+  "story_camera_unavailable": "Caméra indisponible. Utilise la galerie.",
+  "story_camera_insecure": "La caméra nécessite HTTPS (ou localhost).",
+  "story_retry_camera": "Réessayer la caméra",
+  "story_from_gallery_short": "Galerie",
+  "story_retake": "Reprendre",
+  "story_record_unsupported": "Enregistrement vidéo non supporté ici. Utilise la galerie."
 }

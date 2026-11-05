@@ -14,3 +14,21 @@ export function createStoryDraftReset(colors = []) {
     draftColor: palette[Math.floor(Math.random() * palette.length)],
   };
 }
+
+/** Stop all MediaStream tracks (safe for unmount / leave screen). */
+export function stopMediaStream(stream) {
+  if (!stream || typeof stream.getTracks !== "function") return 0;
+  let n = 0;
+  stream.getTracks().forEach((track) => {
+    try { track.stop(); n += 1; } catch { /* ignore */ }
+  });
+  return n;
+}
+
+/** Map getUserMedia error names to i18n keys. */
+export function cameraErrorKey(err) {
+  const name = err?.name || "";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") return "story_camera_denied";
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") return "story_camera_nofound";
+  return "story_camera_unavailable";
+}

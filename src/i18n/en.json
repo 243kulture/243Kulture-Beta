@@ -333,5 +333,14 @@
   "story_camera_title": "Capture your vibe",
   "story_camera_sub": "Photo first — look, dance, a corner of Kin or Brussels. Text stays optional.",
   "story_video_title": "Film your vibe",
-  "story_video_sub": "Short 24h video — rumba, sape, your block. No pressure."
+  "story_video_sub": "Short 24h video — rumba, sape, your block. No pressure.",
+  "story_camera_starting": "Opening camera…",
+  "story_camera_denied": "Camera permission denied. You can pick from the gallery.",
+  "story_camera_nofound": "No camera found. Use the gallery.",
+  "story_camera_unavailable": "Camera unavailable. Use the gallery.",
+  "story_camera_insecure": "Camera needs HTTPS (or localhost).",
+  "story_retry_camera": "Retry camera",
+  "story_from_gallery_short": "Gallery",
+  "story_retake": "Retake",
+  "story_record_unsupported": "Video recording not supported here. Use the gallery."
 }
