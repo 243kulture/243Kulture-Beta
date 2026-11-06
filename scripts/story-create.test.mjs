@@ -3,6 +3,7 @@ import {
   DEFAULT_STORY_DRAFT_TYPE,
   DEFAULT_STORY_FILTER_ID,
   STORY_CAPTURE,
+  STORY_COUNT_UNLIMITED,
   STORY_FILTERS,
   STORY_VIDEO_MAX_SECONDS,
   cameraErrorKey,
@@ -67,8 +68,9 @@ const rec = storyRecorderOptions("video/webm");
 assert.equal(rec.mimeType, "video/webm");
 assert.equal(rec.videoBitsPerSecond, STORY_CAPTURE.videoBitsPerSecond);
 
-// Video hard cap: 30 seconds
+// Video hard cap: 30 seconds — but story *count* is unlimited
 assert.equal(STORY_VIDEO_MAX_SECONDS, 30, "Story video must hard-cap at 30s");
+assert.equal(STORY_COUNT_UNLIMITED, true, "no daily/count Story quota");
 assert.equal(storyVideoSecondsLeft(0), 30);
 assert.equal(storyVideoSecondsLeft(15_000), 15);
 assert.equal(storyVideoSecondsLeft(29_100), 1);

@@ -7,6 +7,13 @@ export const DEFAULT_STORY_DRAFT_TYPE = "image";
 /** Hard cap for Story video recording (seconds). */
 export const STORY_VIDEO_MAX_SECONDS = 30;
 
+/**
+ * No daily / count quota on Story posts.
+ * Users may publish as many Stories as they want; only the 24h TTL applies.
+ * Do not reintroduce soft caps in UI or publishStory.
+ */
+export const STORY_COUNT_UNLIMITED = true;
+
 /** Portrait Story target: sharp on GSM, not 4K/8K "max at all costs". */
 export const STORY_CAPTURE = {
   /** Ideal short×long for phone Stories (720p portrait). */

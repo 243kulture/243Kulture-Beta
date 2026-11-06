@@ -1829,9 +1829,27 @@ export default function App() {
 
   // ---------- Stories (24h) ----------
   const DAY_MS = 24 * 3600 * 1000;
-  const visibleStories = stories.filter((s) => Date.now() - s.createdAt < DAY_MS);
-  const myStory = visibleStories.find((s) => s.authorId === "me");
-  const otherStories = visibleStories.filter((s) => s.authorId !== "me");
+  const visibleStories = stories
+    .filter((s) => Date.now() - s.createdAt < DAY_MS)
+    .slice()
+    .sort((a, b) => a.createdAt - b.createdAt);
+  // Unlimited count: keep every Story in the 24h window (no daily/post quota).
+  const myStories = visibleStories.filter((s) => s.authorId === "me");
+  const myStory = myStories[myStories.length - 1] || null; // rail preview = latest
+  const otherAuthorIds = [];
+  const otherStoriesByAuthor = new Map();
+  for (const st of visibleStories.filter((s) => s.authorId !== "me")) {
+    if (!otherStoriesByAuthor.has(st.authorId)) {
+      otherStoriesByAuthor.set(st.authorId, []);
+      otherAuthorIds.push(st.authorId);
+    }
+    otherStoriesByAuthor.get(st.authorId).push(st);
+  }
+  // One rail chip per author; head = latest for thumbnail.
+  const otherStoryHeads = otherAuthorIds.map((id) => {
+    const list = otherStoriesByAuthor.get(id);
+    return list[list.length - 1];
+  });
 
   useEffect(() => {
     const iv = setInterval(() => forceTick((n) => n + 1), 60000); // ré-évalue l'expiration chaque minute
@@ -1860,7 +1878,10 @@ export default function App() {
     go("storyView");
   };
   const closeStory = () => { setActiveStoryId(null); go("home"); };
-  const storyOrder = () => (myStory ? [myStory, ...otherStories] : otherStories);
+  const storyOrder = () => [
+    ...myStories,
+    ...otherAuthorIds.flatMap((id) => otherStoriesByAuthor.get(id) || []),
+  ];
   const nextStoryAuto = () => {
     const order = storyOrder();
     const idx = order.findIndex((s) => s.id === activeStoryId);
@@ -1973,16 +1994,7 @@ export default function App() {
           mediaUrl = data.publicUrl;
         }
 
-        // Une seule Story active par utilisateur, comme dans l'interface actuelle.
-        const { data: previousStories } = await supabase.from("stories").select("id, media_url").eq("user_id", user.id);
-        if (previousStories?.length) {
-          const oldMediaPaths = previousStories.map((st) => {
-            try { return new URL(st.media_url || "").pathname.split("/stories/")[1]; } catch { return null; }
-          }).filter(Boolean);
-          if (oldMediaPaths.length) await supabase.storage.from("stories").remove(oldMediaPaths);
-          await supabase.from("stories").delete().eq("user_id", user.id);
-        }
-
+        // Unlimited Stories per user (24h TTL only). Do not delete prior rows.
         const { data: inserted, error: insertError } = await supabase.from("stories").insert({
           user_id: user.id,
           type: draftType,
@@ -1992,7 +2004,7 @@ export default function App() {
         }).select("id, user_id, type, text_content, color, media_url, created_at").single();
         if (insertError) throw insertError;
 
-        setStories((prev) => [...prev.filter((st) => st.authorId !== "me"), {
+        setStories((prev) => [...prev, {
           id: inserted.id, authorId: "me", type: inserted.type, text: inserted.text_content || "",
           color: inserted.color, media: inserted.media_url, createdAt: new Date(inserted.created_at).getTime(),
           authorName: "Toi", authorIcon: "🎤",
@@ -2008,7 +2020,7 @@ export default function App() {
         text: draftText.trim(), color: draftColor, media: draftMedia, createdAt: Date.now(),
         authorName: "Toi", authorIcon: "🎤",
       };
-      setStories((prev) => [...prev.filter((st) => st.authorId !== "me"), newStory]);
+      setStories((prev) => [...prev, newStory]);
     }
     addXp(15);
     go("home");
@@ -2798,8 +2810,8 @@ export default function App() {
                   <div className="story-section-sub">24h</div>
                 </div>
                 <div className="story-row">
-                  <div className="story-chip" onClick={() => (myStory ? openStory(myStory.id) : openStoryCreate())}>
-                    <div className={`story-ticket${myStory && !seenStories.includes(myStory.id) ? " unseen" : ""}`}>
+                  <div className="story-chip" onClick={() => (myStories.length ? openStory(myStories[0].id) : openStoryCreate())}>
+                    <div className={`story-ticket${myStories.some((st) => !seenStories.includes(st.id)) ? " unseen" : ""}`}>
                       {myStory?.media ? (
                         <div className="story-ticket-media">{myStory.type === "video" ? <video src={myStory.media} muted playsInline /> : <img src={myStory.media} alt="" />}</div>
                       ) : <div className="story-ticket-media" style={{ background: myStory?.color || "linear-gradient(145deg,var(--blue),var(--green))" }} />}
@@ -2810,7 +2822,10 @@ export default function App() {
                       <div className="story-ticket-add" onClick={(e) => { e.stopPropagation(); openStoryCreate(); }}><Plus size={12} strokeWidth={3} /></div>
                     </div>
                   </div>
-                  {otherStories.map((s) => {
+                  {otherStoryHeads.map((s) => {
+                    const authorStack = otherStoriesByAuthor.get(s.authorId) || [s];
+                    const headOpenId = authorStack[0].id;
+                    const authorUnseen = authorStack.some((st) => !seenStories.includes(st.id));
                     const m = COMMUNITY_MEMBERS.find((mm) => mm.id === s.authorId);
                     const profile = communityProfiles[s.authorId];
                     const name = s.authorName || profile?.display_name || (m ? m.name : "243Kulture");
@@ -2818,13 +2833,13 @@ export default function App() {
                       <div
                         className="story-chip"
                         key={s.id}
-                        onClick={() => openStory(s.id)}
+                        onClick={() => openStory(headOpenId)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           openAuthorProfile(s.authorId);
                         }}
                       >
-                        <div className={`story-ticket${!seenStories.includes(s.id) ? " unseen" : ""}`}>
+                        <div className={`story-ticket${authorUnseen ? " unseen" : ""}`}>
                           {s.media ? (
                             <div className="story-ticket-media">{s.type === "video" ? <video src={s.media} muted playsInline /> : <img src={s.media} alt="" />}</div>
                           ) : <div className="story-ticket-media" style={{ background: s.color || "linear-gradient(145deg,var(--blue),var(--green))" }} />}
