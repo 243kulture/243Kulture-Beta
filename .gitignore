@@ -35,3 +35,7 @@ android/local.properties
 *.aab
 *.ap_
 *.dex
+# Android signing secrets (never commit)
+android/keystore.properties
+*.jks
+*.keystore

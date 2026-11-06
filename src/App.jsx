@@ -19,6 +19,7 @@ import {
   applyThemeToDocument, persistThemeLocal, readStoredTheme,
 } from "./lib/theme.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
+import { isNativePlatform, pickMediaFromGallery } from "./lib/nativePlatform.js";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
   Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
@@ -1977,7 +1978,21 @@ export default function App() {
     reader.readAsDataURL(file);
   };
   const clearStoryMedia = () => { setDraftMedia(null); setDraftFile(null); };
-  const openStoryGallery = () => {
+  const openStoryGallery = async () => {
+    // Native: system photo picker (no full-gallery access). Web: hidden file input.
+    if (isNativePlatform()) {
+      const picked = await pickMediaFromGallery({ preferVideo: draftType === "video" });
+      if (picked?.ok && picked.file) {
+        applyStoryCapture(picked.file);
+        return;
+      }
+      if (picked?.reason === "denied" && picked.message) {
+        alert(picked.message);
+        return;
+      }
+      if (picked?.reason === "cancelled") return;
+      // fallback-input or unexpected → web file input
+    }
     try { storyGalleryInputRef.current?.click(); } catch { /* ignore */ }
   };
   const handleMediaPick = (e) => {
