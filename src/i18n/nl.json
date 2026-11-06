@@ -326,5 +326,22 @@
   "daily_action_optional_note": "Tip van vandaag — optioneel, geen druk om te publiceren.",
   "create_prompts_optional": "Ideeën (optioneel) — je kunt vrij maken zonder ze te gebruiken.",
   "feed_mode_subs_hint": "Abonnementen: berichten van accounts die je volgt.",
-  "feed_mode_foryou_hint": "Voor jou: ontdek nieuwe content en creators."
+  "feed_mode_foryou_hint": "Voor jou: ontdek nieuwe content en creators.",
+  "story_open_camera": "Camera openen",
+  "story_open_video": "Video opnemen",
+  "story_from_gallery": "Kies uit galerij",
+  "story_camera_title": "Vang je vibe",
+  "story_camera_sub": "Eerst foto — look, dans, een hoekje van Kin of Brussel. Tekst blijft optioneel.",
+  "story_video_title": "Film je vibe",
+  "story_video_sub": "Korte 24u-video — rumba, sape, jouw buurt. Geen druk.",
+  "story_camera_starting": "Camera openen…",
+  "story_camera_denied": "Cameratoegang geweigerd. Kies uit de galerij.",
+  "story_camera_nofound": "Geen camera gevonden. Gebruik de galerij.",
+  "story_camera_unavailable": "Camera niet beschikbaar. Gebruik de galerij.",
+  "story_camera_insecure": "Camera vereist HTTPS (of localhost).",
+  "story_retry_camera": "Camera opnieuw proberen",
+  "story_from_gallery_short": "Galerij",
+  "story_retake": "Opnieuw",
+  "story_record_unsupported": "Video-opname niet ondersteund. Gebruik de galerij.",
+  "story_24h_badge": "Story 24u"
 }
