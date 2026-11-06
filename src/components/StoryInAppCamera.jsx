@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Image as ImageIcon, SwitchCamera, X } from "lucide-react";
-import { cameraErrorKey, stopMediaStream } from "../lib/storyCreate.js";
+import {
+  STORY_CAPTURE,
+  cameraErrorKey,
+  fitStoryCaptureSize,
+  stopMediaStream,
+  storyRecorderOptions,
+  storyVideoConstraints,
+} from "../lib/storyCreate.js";
 
 /**
  * Full-bleed Story camera — 2024/25 capture chrome, 243Kulture identity.
@@ -60,16 +67,25 @@ export default function StoryInAppCamera({
     try {
       let stream;
       try {
+        // Device-appropriate Story quality (≈720p ideal, ≤1080p) — not ultra/4K.
         stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facing },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-          },
+          video: storyVideoConstraints(facing),
           audio: wantAudio,
         });
       } catch (firstErr) {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: wantAudio });
+        // Progressive fallbacks for mid-range GSM that reject compound constraints.
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: facing },
+              width: { ideal: STORY_CAPTURE.idealWidth },
+              height: { ideal: STORY_CAPTURE.idealHeight },
+            },
+            audio: wantAudio,
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: wantAudio });
+        }
         if (!stream) throw firstErr;
       }
       streamRef.current = stream;
@@ -102,8 +118,9 @@ export default function StoryInAppCamera({
   const capturePhoto = () => {
     const video = videoRef.current;
     if (!video || !live) return;
-    const w = video.videoWidth || 720;
-    const h = video.videoHeight || 1280;
+    const srcW = video.videoWidth || STORY_CAPTURE.idealWidth;
+    const srcH = video.videoHeight || STORY_CAPTURE.idealHeight;
+    const { width: w, height: h } = fitStoryCaptureSize(srcW, srcH);
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
@@ -119,7 +136,7 @@ export default function StoryInAppCamera({
       const file = new File([blob], `story-${Date.now()}.jpg`, { type: "image/jpeg" });
       stopStream();
       onCaptureFile?.(file);
-    }, "image/jpeg", 0.92);
+    }, "image/jpeg", STORY_CAPTURE.jpegQuality);
   };
 
   const startRecording = () => {
@@ -135,7 +152,13 @@ export default function StoryInAppCamera({
     const mime = mimeCandidates.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported?.(m)) || "";
     let recorder;
     try {
-      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      const opts = storyRecorderOptions(mime);
+      try {
+        recorder = new MediaRecorder(stream, opts);
+      } catch {
+        // Some UAs reject bitrate fields — fall back to mime-only / default.
+        recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      }
     } catch {
       setError(t.story_record_unsupported || "Enregistrement vidéo non supporté. Utilise la galerie.");
       return;
