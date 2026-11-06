@@ -35,3 +35,9 @@ android/local.properties
 *.aab
 *.ap_
 *.dex
+
+# Capacitor iOS build outputs (keep ios/ project)
+ios/App/build/
+ios/App/Pods/
+ios/DerivedData/
+ios/App/output/
