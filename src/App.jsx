@@ -2285,38 +2285,48 @@ export default function App() {
         .story-gallery-link { font-size:11.5px; color:var(--gold); cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
         .story-gallery-link input { display:none; }
         
-        .story-cam-shell { position:absolute; inset:0; z-index:50; background:#000; overflow:hidden; display:flex; flex-direction:column; }
-        .story-cam-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#0a0a0a; }
+        
+        .story-cam-shell { position:absolute; inset:0; z-index:50; background:#000; overflow:hidden; }
+        .story-cam-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#050505; }
         .story-cam-video.mirrored { transform:scaleX(-1); }
-        .story-cam-scrim.top { position:absolute; left:0; right:0; top:0; height:120px; background:linear-gradient(180deg,rgba(0,0,0,.55),transparent); pointer-events:none; z-index:1; }
-        .story-cam-scrim.bottom { position:absolute; left:0; right:0; bottom:0; height:210px; background:linear-gradient(0deg,rgba(0,0,0,.72),transparent); pointer-events:none; z-index:1; }
-        .story-cam-top { position:absolute; top:14px; left:12px; right:12px; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-        .story-cam-icon-btn { width:40px; height:40px; border:none; border-radius:50%; background:rgba(0,0,0,.28); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(6px); }
-        .story-cam-badge { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border-radius:999px; background:rgba(11,13,18,.45); border:1px solid rgba(232,184,75,.45); color:#fff; font-size:11px; font-weight:700; letter-spacing:.02em; backdrop-filter:blur(8px); }
-        .story-cam-badge-mark { color:var(--gold); font-family:var(--font-title); font-weight:800; font-size:12px; }
-        .story-cam-fallback { position:relative; z-index:2; margin:auto; max-width:280px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:12px; padding:20px; }
-        .story-cam-fallback .cam-title { font-family:var(--font-title); font-size:17px; font-weight:700; color:#fff; }
-        .story-cam-fallback .cam-sub { font-size:12px; color:rgba(255,255,255,.7); line-height:1.4; }
+        .story-cam-scrim.top { position:absolute; left:0; right:0; top:0; height:88px; background:linear-gradient(180deg,rgba(0,0,0,.42),transparent); pointer-events:none; z-index:1; }
+        .story-cam-scrim.bottom { position:absolute; left:0; right:0; bottom:0; height:200px; background:linear-gradient(0deg,rgba(0,0,0,.55),transparent 70%); pointer-events:none; z-index:1; }
+        .story-cam-top { position:absolute; top:max(10px, env(safe-area-inset-top)); left:10px; right:10px; z-index:3; display:flex; align-items:center; justify-content:space-between; }
+        .story-cam-icon-btn { width:44px; height:44px; border:none; border-radius:50%; background:transparent; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; filter:drop-shadow(0 1px 3px rgba(0,0,0,.55)); }
+        .story-cam-brand { display:inline-flex; align-items:center; gap:6px; color:#fff; filter:drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
+        .story-cam-brand-mark { font-family:var(--font-title); font-weight:800; font-size:13px; letter-spacing:.04em; color:var(--gold); }
+        .story-cam-brand-dot { width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,.7); }
+        .story-cam-brand-label { font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.92); }
+        .story-cam-fallback { position:relative; z-index:2; margin:auto; max-width:280px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:12px; padding:24px; }
+        .story-cam-fallback .cam-title { font-family:var(--font-title); font-size:18px; font-weight:700; color:#fff; }
+        .story-cam-fallback .cam-sub { font-size:12.5px; color:rgba(255,255,255,.68); line-height:1.45; }
         .story-cam-fallback .cam-sub.err { color:#f3b4b4; }
-        .story-cam-bottom { position:absolute; left:0; right:0; bottom:18px; z-index:3; display:flex; flex-direction:column; align-items:center; gap:16px; padding:0 18px; }
-        .story-cam-modes { display:flex; align-items:center; gap:6px; padding:4px; border-radius:999px; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(8px); }
-        .story-cam-mode { border:none; background:transparent; color:rgba(255,255,255,.72); font-size:12px; font-weight:700; padding:8px 14px; border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; letter-spacing:.04em; text-transform:uppercase; }
-        .story-cam-mode.active { background:#fff; color:#0B0D12; }
-        .story-cam-mode.secondary { color:rgba(232,184,75,.9); font-weight:600; text-transform:none; letter-spacing:0; font-size:11.5px; }
-        .story-cam-capture-row { width:100%; display:flex; align-items:center; justify-content:space-between; padding:0 8px; }
-        .story-cam-gallery { width:46px; height:46px; border-radius:12px; border:1.5px solid rgba(255,255,255,.55); background:rgba(255,255,255,.12); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .story-cam-fallback-btn { border:none; border-radius:999px; padding:12px 18px; background:rgba(255,255,255,.14); color:#fff; font-weight:700; font-size:13px; cursor:pointer; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+        .story-cam-fallback-link { border:none; background:transparent; color:var(--gold); font-size:12.5px; font-weight:600; cursor:pointer; }
+        .story-cam-bottom { position:absolute; left:0; right:0; bottom:max(14px, env(safe-area-inset-bottom)); z-index:3; display:flex; flex-direction:column; align-items:center; gap:18px; padding:0 22px 6px; }
+        .story-cam-capture-row { width:100%; max-width:320px; display:flex; align-items:center; justify-content:space-between; }
+        .story-cam-gallery { width:44px; height:44px; padding:0; border:none; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .story-cam-gallery-face { width:36px; height:36px; border-radius:10px; border:1.5px solid rgba(255,255,255,.85); background:rgba(255,255,255,.08); color:#fff; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
         .story-cam-gallery.spacer { visibility:hidden; pointer-events:none; }
-        .story-cam-shutter { width:76px; height:76px; border-radius:50%; border:4px solid #fff; background:transparent; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 3px rgba(30,95,168,.35); }
-        .story-cam-shutter:disabled { opacity:.45; }
-        .story-cam-shutter-inner { width:60px; height:60px; border-radius:50%; background:#fff; display:block; }
+        .story-cam-shutter { width:84px; height:84px; border-radius:50%; border:3.5px solid #fff; background:transparent; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .12s ease; }
+        .story-cam-shutter:active { transform:scale(.94); }
+        .story-cam-shutter:disabled { opacity:.4; }
+        .story-cam-shutter-inner { width:68px; height:68px; border-radius:50%; background:#fff; display:block; transition:width .15s ease, height .15s ease, border-radius .15s ease, background .15s ease; }
         .story-cam-shutter.video .story-cam-shutter-inner.rec { background:var(--gold); }
-        .story-cam-shutter.recording { border-color:#fff; box-shadow:0 0 0 3px rgba(200,68,60,.45); }
-        .story-cam-shutter.recording .story-cam-shutter-inner.stop { width:24px; height:24px; border-radius:5px; background:#C8443C; }
-        .story-review-shell { display:flex; flex-direction:column; height:100%; }
+        .story-cam-shutter.recording .story-cam-shutter-inner.stop { width:28px; height:28px; border-radius:6px; background:#C8443C; }
+        .story-cam-modes { display:flex; align-items:center; justify-content:center; gap:22px; }
+        .story-cam-mode { border:none; background:transparent; color:rgba(255,255,255,.55); font-family:var(--font-title); font-size:13px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; padding:6px 2px; text-shadow:0 1px 4px rgba(0,0,0,.45); transition:color .15s ease, transform .15s ease; }
+        .story-cam-mode.active { color:#fff; transform:scale(1.06); }
+        .story-cam-mode.quiet { letter-spacing:.04em; text-transform:none; font-weight:600; font-size:12.5px; color:rgba(232,184,75,.75); }
+        .story-cam-mode.quiet:hover, .story-cam-mode.quiet:focus-visible { color:var(--gold); }
+.story-review-shell { display:flex; flex-direction:column; height:100%; }
+        .story-review-bleed { position:absolute; inset:0; z-index:50; background:#000; overflow:hidden; }
+        .story-review-bleed .story-review-media { position:absolute; inset:0; }
         .story-review-media { flex:1; min-height:0; background:#111; display:flex; align-items:center; justify-content:center; position:relative; }
         .story-review-media img, .story-review-media video { width:100%; height:100%; object-fit:cover; }
-        .story-review-actions { padding:14px 16px 18px; display:flex; flex-direction:column; gap:10px; background:linear-gradient(180deg,transparent,rgba(11,13,18,.95)); }
-        .story-retake { text-align:center; font-size:12.5px; color:var(--gold); cursor:pointer; font-weight:600; }
+        .story-review-bleed .story-review-actions { position:absolute; left:0; right:0; bottom:max(18px, env(safe-area-inset-bottom)); z-index:3; padding:0 22px 8px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+        .story-retake { border:none; background:transparent; text-align:center; font-size:14px; color:rgba(255,255,255,.92); cursor:pointer; font-weight:600; letter-spacing:.02em; text-shadow:0 1px 4px rgba(0,0,0,.5); }
+        .story-publish-pill { width:100%; max-width:280px; border:none; border-radius:999px; padding:14px 18px; background:rgba(255,255,255,.96); color:#0B0D12; font-weight:800; font-size:14px; cursor:pointer; font-family:var(--font-title); }
 
         .xp-card { background:linear-gradient(135deg,rgba(232,184,75,0.14),var(--glass)); border:1px solid var(--glass-border); border-radius:18px; padding:16px 18px; margin-bottom:18px; }
         .xp-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
@@ -4101,45 +4111,58 @@ export default function App() {
                 }}
               />
             ) : (
-              <div className="story-review-shell">
+              draftType === "text" ? (
+              <div className="story-review-shell text-mode">
                 <div className="status" />
                 <div className="header">
-                  <span className="back" onClick={() => { if (draftType === "text") go("home"); else clearStoryMedia(); }} style={{ margin: 0 }}><ArrowLeft size={16} strokeWidth={2.5} /></span>
+                  <span className="back" onClick={() => go("home")} style={{ margin: 0 }}><ArrowLeft size={16} strokeWidth={2.5} /></span>
                   <div><div className="htitle">{t.story_new}</div><div className="hsub">{t.story_24h_badge || "Story 24h"}</div></div>
                 </div>
-                {draftType === "text" ? (
-                  <div className="content">
-                    <div className="story-create-tabs">
-                      <div className={`story-type-btn${draftType === "image" ? " selected" : ""}`} onClick={() => { setDraftType("image"); setDraftMedia(null); setDraftFile(null); }}>
-                        <ImageIcon size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_photo}</div>
-                      </div>
-                      <div className={`story-type-btn${draftType === "video" ? " selected" : ""}`} onClick={() => { setDraftType("video"); setDraftMedia(null); setDraftFile(null); }}>
-                        <Video size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_video}</div>
-                      </div>
-                      <div className={`story-type-btn selected`}><TypeIcon size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_text}</div></div>
+                <div className="content">
+                  <div className="story-create-tabs">
+                    <div className={`story-type-btn`} onClick={() => { setDraftType("image"); setDraftMedia(null); setDraftFile(null); }}>
+                      <ImageIcon size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_photo}</div>
                     </div>
-                    <div className="story-color-row">
-                      {STORY_COLORS.map((c) => (
-                        <div key={c} className={`story-color-dot${draftColor === c ? " selected" : ""}`} style={{ background: c }} onClick={() => setDraftColor(c)} />
-                      ))}
+                    <div className={`story-type-btn`} onClick={() => { setDraftType("video"); setDraftMedia(null); setDraftFile(null); }}>
+                      <Video size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_video}</div>
                     </div>
-                    <div className="story-preview" style={{ background: draftColor }}>
-                      <textarea rows={3} maxLength={120} placeholder={t.story_placeholder} value={draftText} onChange={(e) => setDraftText(e.target.value)} />
-                    </div>
-                    <div className="toggle-btn selected" style={{ textAlign: "center" }} onClick={publishStory}>{t.story_publish}</div>
+                    <div className={`story-type-btn selected`}><TypeIcon size={18} strokeWidth={2} /><div className="lbl2">{t.story_type_text}</div></div>
                   </div>
-                ) : (
-                  <>
-                    <div className="story-review-media">
-                      {draftType === "image" ? <img src={draftMedia} alt="" /> : <video src={draftMedia} controls playsInline />}
-                    </div>
-                    <div className="story-review-actions">
-                      <div className="story-retake" onClick={clearStoryMedia}>{t.story_retake || "Reprendre"}</div>
-                      <div className="toggle-btn selected" style={{ textAlign: "center" }} onClick={publishStory}>{t.story_publish}</div>
-                    </div>
-                  </>
-                )}
+                  <div className="story-color-row">
+                    {STORY_COLORS.map((c) => (
+                      <div key={c} className={`story-color-dot${draftColor === c ? " selected" : ""}`} style={{ background: c }} onClick={() => setDraftColor(c)} />
+                    ))}
+                  </div>
+                  <div className="story-preview" style={{ background: draftColor }}>
+                    <textarea rows={3} maxLength={120} placeholder={t.story_placeholder} value={draftText} onChange={(e) => setDraftText(e.target.value)} />
+                  </div>
+                  <div className="toggle-btn selected" style={{ textAlign: "center" }} onClick={publishStory}>{t.story_publish}</div>
+                </div>
               </div>
+              ) : (
+              <div className="story-review-bleed">
+                <div className="story-review-media">
+                  {draftType === "image" ? <img src={draftMedia} alt="" /> : <video src={draftMedia} controls playsInline />}
+                </div>
+                <div className="story-cam-scrim top" />
+                <div className="story-cam-scrim bottom" />
+                <div className="story-cam-top">
+                  <button type="button" className="story-cam-icon-btn" onClick={clearStoryMedia} aria-label="Close">
+                    <X size={28} strokeWidth={2} />
+                  </button>
+                  <div className="story-cam-brand">
+                    <span className="story-cam-brand-mark">243</span>
+                    <span className="story-cam-brand-dot" />
+                    <span className="story-cam-brand-label">{t.story_24h_badge || "Story 24h"}</span>
+                  </div>
+                  <div style={{ width: 44 }} />
+                </div>
+                <div className="story-review-actions">
+                  <button type="button" className="story-retake" onClick={clearStoryMedia}>{t.story_retake || "Reprendre"}</button>
+                  <button type="button" className="story-publish-pill" onClick={publishStory}>{t.story_publish}</button>
+                </div>
+              </div>
+              )
             )}
           </>
         )}

@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Image as ImageIcon, SwitchCamera, Type as TypeIcon, Video, X } from "lucide-react";
+import { Image as ImageIcon, SwitchCamera, X } from "lucide-react";
 import { cameraErrorKey, stopMediaStream } from "../lib/storyCreate.js";
 
 /**
- * Full-bleed Story camera (Instagram/TikTok-style overlays, 243Kulture identity).
- * Live getUserMedia preview edge-to-edge; controls float on top.
- * Stops all tracks on unmount / leave.
+ * Full-bleed Story camera — 2024/25 capture chrome, 243Kulture identity.
+ * Edge-to-edge preview; minimal overlays; tracks stopped on leave.
  */
 export default function StoryInAppCamera({
   mode = "image", // image | video
@@ -13,7 +12,7 @@ export default function StoryInAppCamera({
   onCaptureFile,
   onRequestGallery,
   onClose,
-  onSelectMode, // (mode: image|video|text) => void
+  onSelectMode,
 }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -110,7 +109,6 @@ export default function StoryInAppCamera({
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    // Mirror selfie stills so they match preview
     if (facingMode === "user") {
       ctx.translate(w, 0);
       ctx.scale(-1, 1);
@@ -180,17 +178,17 @@ export default function StoryInAppCamera({
       <div className="story-cam-scrim top" />
       <div className="story-cam-scrim bottom" />
 
-      {/* Top overlay — Instagram-like minimal */}
       <div className="story-cam-top">
         <button type="button" className="story-cam-icon-btn" onClick={onClose} aria-label="Close">
-          <X size={26} strokeWidth={2.2} />
+          <X size={28} strokeWidth={2} />
         </button>
-        <div className="story-cam-badge">
-          <span className="story-cam-badge-mark">243</span>
-          <span>{t.story_24h_badge || "Story 24h"}</span>
+        <div className="story-cam-brand" aria-label="243Kulture Story">
+          <span className="story-cam-brand-mark">243</span>
+          <span className="story-cam-brand-dot" />
+          <span className="story-cam-brand-label">{t.story_24h_badge || "Story 24h"}</span>
         </div>
         <button type="button" className="story-cam-icon-btn" onClick={flipCamera} aria-label="Flip camera">
-          <SwitchCamera size={22} strokeWidth={2.2} />
+          <SwitchCamera size={24} strokeWidth={2} />
         </button>
       </div>
 
@@ -204,44 +202,21 @@ export default function StoryInAppCamera({
           {error
             ? <div className="cam-sub err">{error}</div>
             : <div className="cam-sub">{t.story_camera_sub || ""}</div>}
-          <button type="button" className="story-camera-cta" onClick={() => startStream(facingMode)}>
+          <button type="button" className="story-cam-fallback-btn" onClick={() => startStream(facingMode)}>
             {t.story_retry_camera || t.story_open_camera || "Réessayer la caméra"}
           </button>
-          <button type="button" className="story-gallery-link" onClick={() => onRequestGallery?.()}>
+          <button type="button" className="story-cam-fallback-link" onClick={() => onRequestGallery?.()}>
             {t.story_from_gallery || "Choisir dans la galerie"}
           </button>
         </div>
       )}
 
-      {/* Bottom capture chrome */}
       <div className="story-cam-bottom">
-        <div className="story-cam-modes" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            className={`story-cam-mode${mode === "image" ? " active" : ""}`}
-            onClick={() => onSelectMode?.("image")}
-          >{t.story_type_photo || "Photo"}</button>
-          <button
-            type="button"
-            role="tab"
-            className={`story-cam-mode${mode === "video" ? " active" : ""}`}
-            onClick={() => onSelectMode?.("video")}
-          >{t.story_type_video || "Vidéo"}</button>
-          <button
-            type="button"
-            role="tab"
-            className="story-cam-mode secondary"
-            onClick={() => onSelectMode?.("text")}
-          >
-            <TypeIcon size={12} strokeWidth={2.4} />
-            {t.story_type_text || "Texte"}
-          </button>
-        </div>
-
         <div className="story-cam-capture-row">
           <button type="button" className="story-cam-gallery" onClick={() => onRequestGallery?.()} aria-label="Gallery">
-            <ImageIcon size={20} strokeWidth={2} />
+            <span className="story-cam-gallery-face">
+              <ImageIcon size={18} strokeWidth={1.8} />
+            </span>
           </button>
 
           {mode === "image" ? (
@@ -267,6 +242,28 @@ export default function StoryInAppCamera({
           )}
 
           <div className="story-cam-gallery spacer" aria-hidden="true" />
+        </div>
+
+        {/* Mode strip under shutter — text labels, not chunky pills */}
+        <div className="story-cam-modes" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            className={`story-cam-mode${mode === "image" ? " active" : ""}`}
+            onClick={() => onSelectMode?.("image")}
+          >{t.story_type_photo || "Photo"}</button>
+          <button
+            type="button"
+            role="tab"
+            className={`story-cam-mode${mode === "video" ? " active" : ""}`}
+            onClick={() => onSelectMode?.("video")}
+          >{t.story_type_video || "Vidéo"}</button>
+          <button
+            type="button"
+            role="tab"
+            className="story-cam-mode quiet"
+            onClick={() => onSelectMode?.("text")}
+          >{t.story_type_text || "Texte"}</button>
         </div>
       </div>
     </div>
