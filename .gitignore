@@ -41,3 +41,8 @@ ios/App/build/
 ios/App/Pods/
 ios/DerivedData/
 ios/App/output/
+
+# Android signing secrets (never commit)
+android/keystore.properties
+*.jks
+*.keystore
