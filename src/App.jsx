@@ -16,9 +16,10 @@ import {
 } from "./lib/engagement.js";
 import { createStoryDraftReset, DEFAULT_STORY_DRAFT_TYPE } from "./lib/storyCreate.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
+import ProfileHero, { ProfileCtaButton } from "./components/ProfileHero.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
-  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
+  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2, Pencil } from "lucide-react";
 
 /*
  * ==========================================================================
@@ -748,6 +749,8 @@ export default function App() {
   const [viewedProfileLoading, setViewedProfileLoading] = useState(false);
   const [viewedProfileStats, setViewedProfileStats] = useState({ followers: 0, following: 0, posts: 0 });
   const [viewedProfilePosts, setViewedProfilePosts] = useState([]);
+  const [profileTab, setProfileTab] = useState("publications"); // publications | stories | about
+  const [selfProfileStats, setSelfProfileStats] = useState({ followers: 0, following: 0, posts: 0 });
   const [socialGraphLoading, setSocialGraphLoading] = useState(false);
   const searchTimerRef = useRef(null);
   const searchGenRef = useRef(0);
@@ -967,6 +970,10 @@ export default function App() {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch { /* ignore */ }
+    const isUiPreview = () => {
+      try { return new URLSearchParams(window.location.search).get("uiPreview") === "profile"; }
+      catch { return false; }
+    };
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser({ provider: session.user.app_metadata?.provider || "Google", id: session.user.id, email: session.user.email });
@@ -974,7 +981,7 @@ export default function App() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) setUser({ provider: session.user.app_metadata?.provider || "Google", id: session.user.id, email: session.user.email });
-      else setUser(null);
+      else if (!isUiPreview()) setUser(null);
     });
     return () => listener.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -985,6 +992,9 @@ export default function App() {
   // remplacer les états locaux (favoris, suivis, amis, XP, badges...).
   // ---------- Route guard: language → terms → auth → app ----------
   useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("uiPreview") === "profile") return;
+    } catch { /* ignore */ }
     const redirect = redirectForGate(gate, screen);
     if (redirect && redirect !== screen) setScreen(redirect);
   }, [gate, screen]);
@@ -1592,7 +1602,7 @@ export default function App() {
     setViewedProfileStats({ followers: 0, following: 0, posts: 0 });
     go("userProfile");
     const [profileRes, statsRes, postsRes] = await Promise.all([
-      supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, creator_name, creator_type, creator_languages, onboarding_country, creator_bio").eq("id", profileId).maybeSingle(),
+      supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, creator_name, creator_handle, creator_type, creator_languages, onboarding_country, creator_bio").eq("id", profileId).maybeSingle(),
       supabase.rpc("get_public_profile_stats", { p_profile_id: profileId }),
       supabase.from("posts").select("id, user_id, text, media_url, media_type, created_at").eq("user_id", profileId).order("created_at", { ascending: false }).limit(20),
     ]);
@@ -1633,7 +1643,7 @@ export default function App() {
     if (isRealProfileId(authorId) || communityProfiles[authorId]) openPublicProfile(authorId);
   };
 
-  const RelationActions = ({ profileId, compact }) => {
+  const RelationActions = ({ profileId, compact, hideFollow }) => {
     const rel = relationWith(profileId);
     const incoming = incomingInvites.find((i) => i.sender_id === profileId);
     const outgoing = outgoingInvites.find((i) => i.recipient_id === profileId);
@@ -1643,9 +1653,11 @@ export default function App() {
     if (!isSupabaseConfigured) {
       return (
         <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
-          <div className={`friend-btn${following ? " added" : " add"}`} onClick={() => toggleUserFollow(profileId)}>
-            {following ? t.following_action : t.follow_action}
-          </div>
+          {!hideFollow && (
+            <div className={`friend-btn${following ? " added" : " add"}`} onClick={() => toggleUserFollow(profileId)}>
+              {following ? t.following_action : t.follow_action}
+            </div>
+          )}
           <div className={`friend-btn${friends.includes(profileId) ? " added" : " add"}`} onClick={() => toggleFriend(profileId)}>
             {friends.includes(profileId) ? t.added_friend : t.add_friend}
           </div>
@@ -1654,12 +1666,14 @@ export default function App() {
     }
     return (
       <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
+        {!hideFollow && (
         <div
           className={`friend-btn${following ? " added" : " add"}${busy === `follow:${profileId}` ? " pending" : ""}`}
           onClick={() => !busy && toggleUserFollow(profileId)}
         >
           {busy === `follow:${profileId}` ? t.friend_action_loading : (following ? t.unfollow_action : t.follow_action)}
         </div>
+        )}
         {rel === "friends" && (
           <>
             {!compact && <div className="friend-btn added">{t.relation_friends}</div>}
@@ -2046,6 +2060,91 @@ export default function App() {
     el.scrollTo({ left: heroIndex * (w * 0.88 + 10), behavior: "smooth" });
   }, [heroIndex, screen]);
 
+
+  useEffect(() => {
+    if (screen !== "profil" || !user?.id || !isSupabaseConfigured) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc("get_public_profile_stats", { p_profile_id: user.id });
+      if (cancelled || error || !data) return;
+      setSelfProfileStats({
+        followers: data.followers ?? 0,
+        following: data.following ?? 0,
+        posts: data.posts ?? 0,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [screen, user?.id]);
+
+  useEffect(() => {
+    if (screen === "profil" || screen === "userProfile") setProfileTab("publications");
+  }, [screen, viewedProfile?.id]);
+
+  // QA-only visual preview (?uiPreview=profile[&as=other|&tab=about]) — no auth required.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("uiPreview") !== "profile") return;
+    const asOther = params.get("as") === "other";
+    const tab = params.get("tab");
+    const previewId = "demo-preview-self";
+    const otherId = "demo-preview-other";
+    persistLangLocal("fr");
+    setLang("fr");
+    setCguChecked(true);
+    setHasCurrentCgu(true);
+    setGateReady(true);
+    setUser({ provider: "Preview", id: previewId, email: "preview@243kulture.local" });
+    setMyDisplayName("Grace M.");
+    setNameDraft("Grace M.");
+    setCreatorStatus("verified_creator");
+    setCreatorForm((prev) => ({
+      ...prev,
+      creator_handle: "gracem",
+      creator_bio: "Chanteuse · Kinshasa → Bruxelles. Afro-fusion & scènes live.",
+      creator_type: "Artiste",
+      creator_name: "Grace M.",
+    }));
+    setOnboardingCountry("RDC");
+    setSelfProfileStats({ posts: 8, followers: 342, following: 28 });
+    setFollowingUsers([otherId]);
+    setPosts((prev) => {
+      const mine = [
+        { id: "prev1", authorId: previewId, author: "Toi", icon: "🎤", time: "1h", text: "Répétition pour le showcase 243Kulture ✨", media_url: null },
+        { id: "prev2", authorId: previewId, author: "Toi", icon: "🎤", time: "Hier", text: "Nouveau single en route", media_url: null },
+        { id: "prev3", authorId: previewId, author: "Toi", icon: "🎤", time: "3j", text: "Backstage à Kin", media_url: null },
+      ];
+      return [...mine, ...prev.filter((p) => p.author !== "Toi")];
+    });
+    if (asOther) {
+      setViewedProfile({
+        id: otherId,
+        display_name: "Josué T.",
+        avatar_icon: "🕺",
+        creator_status: "creator",
+        creator_name: "Josué T.",
+        creator_handle: "josuet",
+        creator_type: "Danseur",
+        onboarding_country: "Belgique",
+        creator_bio: "Danse contemporaine & rumba. Workshops Bruxelles / Kin.",
+      });
+      setViewedProfileStats({ followers: 128, following: 54, posts: 5 });
+      setViewedProfilePosts([
+        { id: "op1", authorId: otherId, text: "Creative Currencies était magique 🔥", media_url: null, media_type: null, time: "2h" },
+        { id: "op2", authorId: otherId, text: "Nouveau workshop ce week-end", media_url: null, media_type: null, time: "1j" },
+        { id: "op3", authorId: otherId, text: "Répétition studio", media_url: null, media_type: null, time: "3j" },
+      ]);
+      setScreen("userProfile");
+    } else {
+      setScreen("profil");
+    }
+    // After screen-change tab reset, apply ?tab= (QA shots).
+    if (tab === "about" || tab === "stories" || tab === "publications") {
+      const tId = window.setTimeout(() => setProfileTab(tab), 80);
+      return () => window.clearTimeout(tId);
+    }
+  }, []);
+
   const ytFiltered = podFilter === "all" ? YT_EPISODES : YT_EPISODES.filter((e) => e.cat === podFilter);
   const searchResults = query.trim() ? CATALOG.filter((c) => c.title.toLowerCase().includes(query.trim().toLowerCase())) : [];
   const currentInsta = INSTA_POSTS.find((i) => i.id === articleId) || null;
@@ -2170,6 +2269,43 @@ export default function App() {
         .daily-action-dismiss { border:0; background:transparent; color:var(--muted); font-size:11px; cursor:pointer; padding:8px 6px; }
         .feed-mode-row .subtab.feed-primary { flex:1.15; }
         .feed-mode-row .subtab.selected.feed-primary { box-shadow:0 0 0 1px rgba(232,184,75,.35); }
+        
+        .profile-hero { margin: -14px -16px 12px; }
+        .profile-cover { height: 132px; width: 100%; position: relative; }
+        .profile-hero-body { padding: 0 16px 4px; margin-top: -42px; position: relative; z-index: 1; }
+        .profile-avatar-wrap { display:flex; justify-content:center; }
+        .profile-avatar-lg { width:84px; height:84px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:34px;
+          background:linear-gradient(145deg, #1a2438, #0B0D12); border:3px solid rgba(232,184,75,.55); box-shadow:0 8px 28px rgba(0,0,0,.45); color:#fff; }
+        .profile-identity { text-align:center; margin-top:10px; }
+        .profile-name-row { display:flex; align-items:center; justify-content:center; gap:8px; }
+        .profile-name-lg { margin:0; font-family:var(--font-title); font-size:20px; font-weight:800; color:var(--text); letter-spacing:.01em; }
+        .profile-verified { color:var(--gold); display:inline-flex; }
+        .profile-meta { margin-top:4px; font-size:12px; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px; justify-content:center; align-items:center; }
+        .profile-handle { color:var(--gold); font-weight:600; }
+        .profile-meta-dot { opacity:.5; }
+        .profile-bio { margin:10px auto 0; max-width:320px; font-size:13px; line-height:1.45; color:rgba(242,243,245,.82); }
+        .profile-stats-row--hero { margin:14px 0 12px; }
+        .profile-cta-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:12px; }
+        .profile-cta { min-width:118px; border-radius:999px; padding:10px 16px; font-family:var(--font-title); font-size:13px; font-weight:700; cursor:pointer; border:1.5px solid transparent; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+        .profile-cta:disabled { opacity:.45; cursor:default; }
+        .profile-cta--primary { background:linear-gradient(135deg, var(--gold), #d4a03a); color:#1a1200; border-color:transparent; }
+        .profile-cta--primary.is-following { background:transparent; color:var(--gold); border-color:rgba(232,184,75,.55); }
+        .profile-cta--secondary { background:transparent; color:var(--text); border-color:var(--glass-border); }
+        .profile-cta--ghost { background:var(--glass); color:var(--muted); border-color:var(--glass-border); font-weight:600; }
+        .profile-tabs { display:flex; gap:4px; border-bottom:1px solid var(--glass-border); margin:4px 0 12px; }
+        .profile-tab { flex:1; border:none; background:transparent; color:var(--muted); font-family:var(--font-title); font-size:12.5px; font-weight:650; padding:10px 6px; cursor:pointer; border-bottom:2px solid transparent; }
+        .profile-tab.active { color:var(--gold); border-bottom-color:var(--gold); }
+        .profile-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; margin:0 -2px 16px; }
+        .profile-grid-item { aspect-ratio:1; overflow:hidden; background:var(--glass); position:relative; }
+        .profile-grid-item img, .profile-grid-item video { width:100%; height:100%; object-fit:cover; display:block; }
+        .profile-grid-item .txt-tile { position:absolute; inset:0; padding:8px; font-size:10px; line-height:1.3; color:var(--text); display:flex; align-items:flex-end; background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,.72)); }
+        .profile-stories-row { display:flex; gap:12px; overflow-x:auto; padding:4px 2px 16px; }
+        .profile-story-chip { flex:0 0 auto; width:72px; text-align:center; }
+        .profile-story-ring { width:64px; height:64px; border-radius:50%; border:2px solid var(--gold); padding:2px; margin:0 auto 4px; }
+        .profile-story-ring-inner { width:100%; height:100%; border-radius:50%; background:linear-gradient(135deg,var(--blue),var(--red)); display:flex; align-items:center; justify-content:center; font-size:22px; overflow:hidden; }
+        .profile-story-ring-inner img, .profile-story-ring-inner video { width:100%; height:100%; object-fit:cover; }
+        .profile-friend-slot { display:flex; justify-content:center; margin-bottom:10px; }
+
         .profile-avatar { width:74px; height:74px; border-radius:50%; margin:6px auto 10px; display:flex; align-items:center; justify-content:center; font-size:30px; background:linear-gradient(135deg,var(--blue),var(--green)); color:#fff; }
         .profile-name { text-align:center; font-size:15px; font-weight:700; color:var(--text); margin-bottom:2px; }
         .profile-sub { text-align:center; font-size:11px; color:var(--muted); margin-bottom:18px; }
@@ -3210,6 +3346,111 @@ export default function App() {
             <div className="status" />
             <div className="header"><div><div className="htitle">{t.profiltitle}</div><div className="hsub">{t.profiltag}</div></div></div>
             <div className="content">
+              {(() => {
+                const myPosts = posts.filter((p) => p.authorId === user?.id || p.author === "Toi");
+                const selfStats = {
+                  posts: Math.max(selfProfileStats.posts || 0, myPosts.length),
+                  followers: selfProfileStats.followers || 0,
+                  following: selfProfileStats.following || followingUsers.length || 0,
+                };
+                const selfBio = creatorForm.creator_bio || (creatorStatus !== "member" ? "" : "");
+                return (
+                  <ProfileHero
+                    profileId={user?.id}
+                    displayName={user ? (myDisplayName || t.profile_fan) : t.profile_guest}
+                    avatarIcon={user ? "🎶" : "👤"}
+                    bio={user ? (selfBio || null) : null}
+                    country={user ? (onboardingCountry || null) : null}
+                    handle={creatorForm.creator_handle || null}
+                    creatorStatus={user ? creatorStatus : null}
+                    creatorStatusLabel={creatorStatusLabel(creatorStatus, lang)}
+                    creatorType={creatorForm.creator_type || null}
+                    stats={selfStats}
+                    isSelf
+                    t={t}
+                    tab={profileTab}
+                    onTabChange={setProfileTab}
+                    showStoriesTab={Boolean(user)}
+                    primaryActions={user ? (
+                      <ProfileCtaButton variant="secondary" onClick={() => setProfileTab("about")}>
+                        <Pencil size={14} /> {t.profile_edit}
+                      </ProfileCtaButton>
+                    ) : null}
+                    secondaryActions={user && creatorStatus !== "member" ? (
+                      <ProfileCtaButton variant="ghost" onClick={() => go("creatorStudio")}>
+                        <Star size={14} /> Studio
+                      </ProfileCtaButton>
+                    ) : user && creatorStatus === "member" ? (
+                      <ProfileCtaButton variant="ghost" onClick={() => go("creatorIntro")}>
+                        <Star size={14} /> {t.profile_edit === "Modifier" ? "Créateur" : "Creator"}
+                      </ProfileCtaButton>
+                    ) : null}
+                  />
+                );
+              })()}
+
+              {profileTab === "publications" && (
+                <>
+                  {(() => {
+                    const myPosts = posts.filter((p) => p.authorId === user?.id || p.author === "Toi");
+                    if (!user) {
+                      return (
+                        <>
+                          <div className="section-label" style={{ marginTop: 0 }}>{t.sec_connexion}</div>
+                          <div className="note" style={{ marginBottom: 12 }}>{t.auth_required_note}</div>
+                          <div className="toggle-btn selected" onClick={() => setScreen(readStoredLang() ? (cguChecked ? "onboarding" : "termsGate") : "languagePicker")}>
+                            {t.btn_login} / {t.btn_signup}
+                          </div>
+                        </>
+                      );
+                    }
+                    if (myPosts.length === 0) {
+                      return <div className="empty-state"><span className="ic">▦</span><div className="txt">{t.profile_grid_empty}</div></div>;
+                    }
+                    return (
+                      <div className="profile-grid">
+                        {myPosts.map((p) => (
+                          <div className="profile-grid-item" key={p.id}>
+                            {p.media_url ? (
+                              p.media_type === "video"
+                                ? <video src={p.media_url} muted playsInline />
+                                : <img src={p.media_url} alt="" />
+                            ) : (
+                              <div className="txt-tile">{(p.text || "").slice(0, 80)}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
+              {profileTab === "stories" && (
+                <>
+                  {myStories.length === 0 ? (
+                    <div className="empty-state"><span className="ic">◎</span><div className="txt">{t.profile_stories_empty}</div></div>
+                  ) : (
+                    <div className="profile-stories-row">
+                      {myStories.map((st) => (
+                        <div className="profile-story-chip" key={st.id} onClick={() => openStory(st.id)}>
+                          <div className="profile-story-ring">
+                            <div className="profile-story-ring-inner">
+                              {st.type === "photo" && st.media ? <img src={st.media} alt="" />
+                                : st.type === "video" && st.media ? <video src={st.media} muted />
+                                : "🎤"}
+                            </div>
+                          </div>
+                          <div className="note" style={{ fontSize: 10 }}>{st.type}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {profileTab === "about" && (
+                <>
               <div className="xp-card">
                 <div className="xp-top">
                   <div className="xp-level-badge">
@@ -3232,8 +3473,6 @@ export default function App() {
                 </div>
               )}
 
-              <div className="profile-avatar">{user ? "🎶" : "👤"}</div>
-              <div className="profile-name">{user ? (myDisplayName || t.profile_fan) : t.profile_guest}</div>
               {user && isSupabaseConfigured && (
                 <div className="search-bar" style={{ marginBottom: 10 }}>
                   <input type="text" placeholder={t.profile_fan} value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onBlur={saveDisplayName} onKeyDown={(e) => e.key === "Enter" && saveDisplayName()} />
@@ -3341,6 +3580,8 @@ export default function App() {
                 <div className="thumb">🔗</div>
                 <div><div className="card-title">{t.social_card_title}</div><div className="card-sub">{t.social_card_sub}</div></div>
               </div>
+                </>
+              )}
             </div>
             <NavBar screen={screen} go={go} t={t} />
           </>
@@ -4209,37 +4450,107 @@ export default function App() {
               {!viewedProfileLoading && !viewedProfile && (
                 <div className="empty-state"><span className="ic">👤</span><div className="txt">{t.profile_not_found}</div></div>
               )}
-              {!viewedProfileLoading && viewedProfile && (
-                <>
-                  <div className="profile-avatar">{viewedProfile.avatar_icon || "🎶"}</div>
-                  <div className="profile-name">{viewedProfile.display_name || viewedProfile.creator_name || t.profile_fan}</div>
-                  {viewedProfile.creator_status && viewedProfile.creator_status !== "member" && (
-                    <div className="streak-pill" style={{ margin: "6px auto 10px", display: "flex", width: "fit-content" }}><Star size={13} /> {creatorStatusLabel(viewedProfile.creator_status, lang)}</div>
-                  )}
-                  {viewedProfile.creator_type && <div className="note" style={{ textAlign: "center", marginBottom: 4 }}>{t.profile_creator_type}: {viewedProfile.creator_type}</div>}
-                  {viewedProfile.onboarding_country && <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>{viewedProfile.onboarding_country}</div>}
-                  {viewedProfile.creator_bio && <div className="note" style={{ textAlign: "center", marginBottom: 14 }}>{viewedProfile.creator_bio}</div>}
-                  <div className="profile-stats-row">
-                    <div className="profile-stat"><div className="n">{viewedProfileStats.followers}</div><div className="l">{t.followers_count}</div></div>
-                    <div className="profile-stat"><div className="n">{viewedProfileStats.following}</div><div className="l">{t.following_count}</div></div>
-                    <div className="profile-stat"><div className="n">{viewedProfileStats.posts}</div><div className="l">{t.posts_count}</div></div>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                    <RelationActions profileId={viewedProfile.id} />
-                  </div>
-                  <div className="section-label">{t.profile_public_posts}</div>
-                  {viewedProfilePosts.length === 0 && <div className="note">{t.feed_subs_empty}</div>}
-                  {viewedProfilePosts.map((p) => (
-                    <div className="post-card" key={p.id}>
-                      <div className="post-time" style={{ marginBottom: 6 }}>{p.time}</div>
-                      <div className="post-text">{p.text}</div>
-                      {p.media_url && (p.media_type === "video"
-                        ? <video className="post-media" src={p.media_url} controls />
-                        : <img className="post-media" src={p.media_url} alt="" />)}
-                    </div>
-                  ))}
-                </>
-              )}
+              {!viewedProfileLoading && viewedProfile && (() => {
+                const following = isFollowing(followingUsers, viewedProfile.id);
+                const rel = relationWith(viewedProfile.id);
+                const theirStories = visibleStories.filter((st) => st.authorId === viewedProfile.id);
+                const openMessage = () => {
+                  if (rel === "friends" || friends.includes(viewedProfile.id)) {
+                    setActiveConv(viewedProfile.id);
+                    go("conversation");
+                  } else {
+                    setCommunityTab("messages");
+                    go("amis");
+                  }
+                };
+                return (
+                  <>
+                    <ProfileHero
+                      profileId={viewedProfile.id}
+                      displayName={viewedProfile.display_name || viewedProfile.creator_name || t.profile_fan}
+                      avatarIcon={viewedProfile.avatar_icon || "🎶"}
+                      bio={viewedProfile.creator_bio || null}
+                      country={viewedProfile.onboarding_country || null}
+                      handle={viewedProfile.creator_handle || null}
+                      creatorStatus={viewedProfile.creator_status}
+                      creatorStatusLabel={creatorStatusLabel(viewedProfile.creator_status, lang)}
+                      creatorType={viewedProfile.creator_type || null}
+                      stats={viewedProfileStats}
+                      isSelf={false}
+                      t={t}
+                      tab={profileTab}
+                      onTabChange={setProfileTab}
+                      showStoriesTab={theirStories.length > 0}
+                      primaryActions={
+                        <ProfileCtaButton
+                          variant="primary"
+                          className={following ? "is-following" : ""}
+                          disabled={Boolean(friendActionBusy)}
+                          onClick={() => toggleUserFollow(viewedProfile.id)}
+                        >
+                          {friendActionBusy === `follow:${viewedProfile.id}`
+                            ? t.friend_action_loading
+                            : (following ? t.unfollow_action : t.follow_action)}
+                        </ProfileCtaButton>
+                      }
+                      secondaryActions={
+                        <ProfileCtaButton variant="secondary" onClick={openMessage}>
+                          <MessageCircle size={14} /> {t.profile_message}
+                        </ProfileCtaButton>
+                      }
+                      belowActions={
+                        <div className="profile-friend-slot">
+                          <RelationActions profileId={viewedProfile.id} hideFollow compact />
+                        </div>
+                      }
+                    />
+                    {profileTab === "publications" && (
+                      <>
+                        {viewedProfilePosts.length === 0 && (
+                          <div className="empty-state"><span className="ic">▦</span><div className="txt">{t.profile_grid_empty}</div></div>
+                        )}
+                        {viewedProfilePosts.length > 0 && (
+                          <div className="profile-grid">
+                            {viewedProfilePosts.map((p) => (
+                              <div className="profile-grid-item" key={p.id}>
+                                {p.media_url ? (
+                                  p.media_type === "video"
+                                    ? <video src={p.media_url} muted playsInline />
+                                    : <img src={p.media_url} alt="" />
+                                ) : (
+                                  <div className="txt-tile">{(p.text || "").slice(0, 80)}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {profileTab === "stories" && (
+                      <>
+                        {theirStories.length === 0 ? (
+                          <div className="empty-state"><span className="ic">◎</span><div className="txt">{t.profile_stories_empty}</div></div>
+                        ) : (
+                          <div className="profile-stories-row">
+                            {theirStories.map((st) => (
+                              <div className="profile-story-chip" key={st.id} onClick={() => openStory(st.id)}>
+                                <div className="profile-story-ring">
+                                  <div className="profile-story-ring-inner">
+                                    {st.type === "photo" && st.media ? <img src={st.media} alt="" />
+                                      : st.type === "video" && st.media ? <video src={st.media} muted />
+                                      : (st.authorIcon || "🎤")}
+                                  </div>
+                                </div>
+                                <div className="note" style={{ fontSize: 10 }}>{st.type}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </>
         )}
