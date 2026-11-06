@@ -343,5 +343,12 @@
   "story_from_gallery_short": "Galerij",
   "story_retake": "Opnieuw",
   "story_record_unsupported": "Video-opname niet ondersteund. Gebruik de galerij.",
-  "story_24h_badge": "Story 24u"
+  "story_24h_badge": "Story 24u",
+  "story_filters_label": "Filters",
+  "story_filter_naturel": "Natuurlijk",
+  "story_filter_chaud": "Warm",
+  "story_filter_cool": "Cool",
+  "story_filter_nb": "Z/W",
+  "story_filter_vivid": "Vivid",
+  "story_filter_kin": "Kin"
 }

@@ -343,5 +343,12 @@
   "story_from_gallery_short": "Gallery",
   "story_retake": "Retake",
   "story_record_unsupported": "Video recording not supported here. Use the gallery.",
-  "story_24h_badge": "Story 24h"
+  "story_24h_badge": "Story 24h",
+  "story_filters_label": "Filters",
+  "story_filter_naturel": "Natural",
+  "story_filter_chaud": "Warm",
+  "story_filter_cool": "Cool",
+  "story_filter_nb": "B&W",
+  "story_filter_vivid": "Vivid",
+  "story_filter_kin": "Kin"
 }
