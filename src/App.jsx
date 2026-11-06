@@ -16,6 +16,7 @@ import {
 } from "./lib/engagement.js";
 import { createStoryDraftReset, DEFAULT_STORY_DRAFT_TYPE } from "./lib/storyCreate.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
+import SplashIntro, { shouldShowSplashOnBoot } from "./components/SplashIntro.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
   Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
@@ -681,6 +682,7 @@ const Header = ({ title, sub, withLogo = true, icons }) => (
 export default function App() {
   const initialLang = (() => { try { return readStoredLang(); } catch { return null; } })();
   const [screen, setScreen] = useState(() => (initialLang ? "termsGate" : "languagePicker"));
+  const [showSplash, setShowSplash] = useState(() => shouldShowSplashOnBoot());
   const [favorites, setFavorites] = useState([]); // {id,title,sub,icon}
   const [notifDot, setNotifDot] = useState(true);
   const [lang, setLang] = useState(() => initialLang || "fr");
@@ -2554,7 +2556,34 @@ export default function App() {
           .story-viewer, .onb-screen { max-width: 960px; margin: 0 auto; }
           .msg-input-row, .player-bar { max-width: 680px; margin: 0 auto; width: 100%; box-sizing: border-box; }
         }
-        @media (min-width: 1200px) {
+        
+        .splash-intro { position:absolute; inset:0; z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#06080c; overflow:hidden; cursor:pointer; animation:splash-scrim-in .35s ease-out both; }
+        .splash-intro--exit { animation:splash-scrim-out .45s ease-in both; pointer-events:none; }
+        .splash-intro-atmosphere { position:absolute; inset:-20%; background:
+          radial-gradient(ellipse 70% 55% at 50% 42%, rgba(30,95,168,.38) 0%, transparent 58%),
+          radial-gradient(ellipse 50% 40% at 70% 70%, rgba(200,68,60,.16) 0%, transparent 55%),
+          radial-gradient(ellipse 40% 35% at 25% 75%, rgba(232,184,75,.10) 0%, transparent 50%),
+          linear-gradient(180deg, #0a101c 0%, #06080c 55%, #050608 100%);
+          transform:scale(1.05); animation:splash-atmos 2.8s ease-out both; }
+        .splash-intro-vignette { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,.55) 100%); pointer-events:none; }
+        .splash-intro-stage { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; padding:24px; }
+        .splash-intro-logo { width:min(58vw, 220px); height:min(58vw, 220px); object-fit:cover; border-radius:22px;
+          box-shadow:0 0 0 1px rgba(232,184,75,.22), 0 18px 50px rgba(0,0,0,.55), 0 0 60px rgba(30,95,168,.25);
+          animation:splash-logo-in 1.1s cubic-bezier(.16,1,.3,1) .15s both; }
+        .splash-intro--exit .splash-intro-logo { animation:splash-logo-out .4s ease-in both; }
+        .splash-intro-skip { position:absolute; z-index:2; bottom:max(18px, env(safe-area-inset-bottom)); right:18px;
+          border:none; background:transparent; color:rgba(242,243,245,.45); font-size:12px; font-family:var(--font-title); letter-spacing:.04em; cursor:pointer; padding:8px 10px; }
+        .splash-intro-skip:hover, .splash-intro-skip:focus-visible { color:rgba(232,184,75,.9); outline:none; }
+        @keyframes splash-scrim-in { from { opacity:0; } to { opacity:1; } }
+        @keyframes splash-scrim-out { from { opacity:1; } to { opacity:0; } }
+        @keyframes splash-logo-in { from { opacity:0; transform:scale(.82); filter:blur(6px); } to { opacity:1; transform:scale(1); filter:blur(0); } }
+        @keyframes splash-logo-out { from { opacity:1; transform:scale(1); } to { opacity:0; transform:scale(1.06); } }
+        @keyframes splash-atmos { from { opacity:.6; transform:scale(1.12); } to { opacity:1; transform:scale(1.05); } }
+        @media (prefers-reduced-motion: reduce) {
+          .splash-intro-logo, .splash-intro-atmosphere { animation-duration:.01ms !important; animation-delay:0s !important; }
+        }
+
+@media (min-width: 1200px) {
           .phone { max-width: 1100px; border-left: none; border-right: none; }
           .content, .msg-input-row, .player-bar { max-width: 760px; }
         }
@@ -2562,6 +2591,9 @@ export default function App() {
 
       <div className="k-app">
       <div className="phone">
+        {showSplash && (
+          <SplashIntro onDone={() => setShowSplash(false)} />
+        )}
         {xpToast && <div className="xp-toast">✨ +{xpToast.amount} {t.xp_pts}</div>}
 
         {/* GATE 1 — Language picker (mandatory, original app logo) */}
