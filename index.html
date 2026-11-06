@@ -1,15 +1,33 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <meta name="theme-color" content="#08090D" />
+    <meta name="theme-color" content="#0B0D12" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <title>243Kulture</title>
+    <script>
+      (function () {
+        try {
+          var key = "243kulture_appearance";
+          var mode = localStorage.getItem(key);
+          if (mode !== "system" && mode !== "light" && mode !== "dark") mode = "dark";
+          document.documentElement.setAttribute("data-theme", mode);
+          var effective = mode === "system"
+            ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+            : mode;
+          document.documentElement.style.colorScheme = effective;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", effective === "light" ? "#F7F4EF" : "#0B0D12");
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
   </head>
   <body style="margin:0;">
     <div id="root"></div>
