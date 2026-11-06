@@ -38,8 +38,9 @@ export const LANG_STORAGE_KEY = "243kulture_lang";
 export const TERMS_LOCAL_KEY = "243kulture_cgu_accepted";
 
 /** Current required CGU version — bump to re-prompt all users. */
-export const REQUIRED_CGU_VERSION = "v1.0";
-export const REQUIRED_PRIVACY_VERSION = "v1.0";
+/** Bumped to v1.1 — material product-alignment of in-app CGU/privacy (Stories 24h, optional camera, retention honesty). Re-consent required. DRAFT — not lawyer-validated. */
+export const REQUIRED_CGU_VERSION = "v1.1";
+export const REQUIRED_PRIVACY_VERSION = "v1.1";
 
 export function isSupportedLang(code) {
   return SUPPORTED_LANGS.includes(code);
