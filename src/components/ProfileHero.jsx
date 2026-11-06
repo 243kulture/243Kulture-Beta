@@ -18,6 +18,7 @@ export function profileCoverStyle(seed = "") {
 /**
  * Shared profile header — Motema/BLK/Afrimania structure, 243Kulture colors.
  * Follow ≠ Friend (friend actions stay outside primary CTA when provided).
+ * Avatar ring + tap opens Story when hasActiveStory.
  */
 export default function ProfileHero({
   profileId,
@@ -38,13 +39,25 @@ export default function ProfileHero({
   tab = "publications",
   onTabChange,
   showStoriesTab = false,
+  hasActiveStory = false,
+  storyUnseen = false,
+  onAvatarClick = null,
 }) {
+  const avatarInteractive = Boolean(hasActiveStory && onAvatarClick);
   return (
     <div className="profile-hero">
       <div className="profile-cover" style={profileCoverStyle(profileId || displayName)} aria-hidden="true" />
       <div className="profile-hero-body">
         <div className="profile-avatar-wrap">
-          <div className="profile-avatar-lg" aria-hidden="true">{avatarIcon || "🎶"}</div>
+          <button
+            type="button"
+            className={`profile-avatar-btn${hasActiveStory ? " has-story" : ""}${storyUnseen ? " story-unseen" : ""}${avatarInteractive ? " is-clickable" : ""}`}
+            onClick={avatarInteractive ? onAvatarClick : undefined}
+            disabled={!avatarInteractive}
+            aria-label={avatarInteractive ? (t.profile_open_story || "Voir la Story") : undefined}
+          >
+            <span className="profile-avatar-lg" aria-hidden="true">{avatarIcon || "🎶"}</span>
+          </button>
         </div>
         <div className="profile-identity">
           <div className="profile-name-row">

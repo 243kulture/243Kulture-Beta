@@ -1112,7 +1112,7 @@ export default function App() {
 
   // ---------- Chargement des Stories réelles ----------
   useEffect(() => {
-    if (!isSupabaseConfigured || !user?.id) return;
+    if (!isSupabaseConfigured || !user?.id || String(user.id).startsWith("demo-")) return;
     (async () => {
       const { data, error } = await supabase
         .from("stories")
@@ -1583,6 +1583,19 @@ export default function App() {
     await loadSocialGraph();
   };
 
+  /** Open or create a DM thread — friends not required (messages table is peer-to-peer). */
+  const openDirectMessage = (profileId, profileHint = null) => {
+    if (!profileId || profileId === user?.id) return;
+    if (profileHint) {
+      setCommunityProfiles((prev) => mergeProfileMap(prev, [profileHint]));
+    }
+    setActiveConv(profileId);
+    setCommunityTab("messages");
+    // Real sessions go through the gate; demo/QA preview uses setScreen directly.
+    if (redirectForGate(gate, "conversation")) setScreen("conversation");
+    else go("conversation");
+  };
+
   const openPublicProfile = async (profileId) => {
     if (!profileId) return;
     if (profileId === user?.id) { go("profil"); return; }
@@ -1889,7 +1902,8 @@ export default function App() {
   const openStory = (id) => {
     setActiveStoryId(id);
     setSeenStories((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    go("storyView");
+    if (redirectForGate(gate, "storyView")) setScreen("storyView");
+    else go("storyView");
   };
   const closeStory = () => { setActiveStoryId(null); go("home"); };
   const storyOrder = () => [
@@ -2116,6 +2130,13 @@ export default function App() {
       ];
       return [...mine, ...prev.filter((p) => p.author !== "Toi")];
     });
+    setStories((prev) => {
+      const now = Date.now();
+      const selfStory = { id: "prev_story_self", authorId: "me", type: "text", text: "Live rehearsal ✨", color: "linear-gradient(135deg,#1E5FA8,#C8443C)", createdAt: now - 3600 * 1000 };
+      const otherStory = { id: "prev_story_other", authorId: otherId, type: "text", text: "Workshop tonight", color: "linear-gradient(135deg,#C8443C,#E8B84B)", authorIcon: "🕺", createdAt: now - 2 * 3600 * 1000 };
+      const without = prev.filter((st) => st.id !== selfStory.id && st.id !== otherStory.id);
+      return asOther ? [...without, otherStory] : [...without, selfStory];
+    });
     if (asOther) {
       setViewedProfile({
         id: otherId,
@@ -2274,8 +2295,14 @@ export default function App() {
         .profile-cover { height: 132px; width: 100%; position: relative; }
         .profile-hero-body { padding: 0 16px 4px; margin-top: -42px; position: relative; z-index: 1; }
         .profile-avatar-wrap { display:flex; justify-content:center; }
+        .profile-avatar-btn { border:none; background:transparent; padding:0; margin:0; border-radius:50%; cursor:default; }
+        .profile-avatar-btn.is-clickable { cursor:pointer; }
+        .profile-avatar-btn.has-story { padding:3px; background:linear-gradient(135deg, var(--gold), var(--red) 55%, var(--blue)); box-shadow:0 0 0 1px rgba(232,184,75,.25); }
+        .profile-avatar-btn.has-story.story-unseen { background:linear-gradient(135deg, var(--gold), #f0d078 40%, var(--red)); }
+        .profile-avatar-btn:not(.has-story) .profile-avatar-lg { border:3px solid rgba(232,184,75,.55); }
+        .profile-avatar-btn.has-story .profile-avatar-lg { border:3px solid var(--bg); }
         .profile-avatar-lg { width:84px; height:84px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:34px;
-          background:linear-gradient(145deg, #1a2438, #0B0D12); border:3px solid rgba(232,184,75,.55); box-shadow:0 8px 28px rgba(0,0,0,.45); color:#fff; }
+          background:linear-gradient(145deg, #1a2438, #0B0D12); box-shadow:0 8px 28px rgba(0,0,0,.45); color:#fff; }
         .profile-identity { text-align:center; margin-top:10px; }
         .profile-name-row { display:flex; align-items:center; justify-content:center; gap:8px; }
         .profile-name-lg { margin:0; font-family:var(--font-title); font-size:20px; font-weight:800; color:var(--text); letter-spacing:.01em; }
@@ -3371,6 +3398,9 @@ export default function App() {
                     tab={profileTab}
                     onTabChange={setProfileTab}
                     showStoriesTab={Boolean(user)}
+                    hasActiveStory={myStories.length > 0}
+                    storyUnseen={myStories.some((st) => !seenStories.includes(st.id))}
+                    onAvatarClick={myStories.length ? () => openStory(myStories[0].id) : null}
                     primaryActions={user ? (
                       <ProfileCtaButton variant="secondary" onClick={() => setProfileTab("about")}>
                         <Pencil size={14} /> {t.profile_edit}
@@ -4245,7 +4275,13 @@ export default function App() {
             <div className="status" />
             <div className="header">
               <span className="back" onClick={() => go("amis")} style={{ margin: 0 }}>← </span>
-              <div><div className="htitle">{isSupabaseConfigured ? (realFriendProfiles.find((p) => p.id === activeConv)?.display_name || t.profile_fan) : COMMUNITY_MEMBERS.find((m) => m.id === activeConv)?.name}</div><div className="hsub">{t.conv_sub}</div></div>
+              <div><div className="htitle">{(() => {
+                const fromFriends = realFriendProfiles.find((p) => p.id === activeConv);
+                const fromCommunity = communityProfiles[activeConv];
+                const fromViewed = viewedProfile?.id === activeConv ? viewedProfile : null;
+                const mock = COMMUNITY_MEMBERS.find((m) => m.id === activeConv);
+                return fromFriends?.display_name || fromCommunity?.display_name || fromViewed?.display_name || fromViewed?.creator_name || mock?.name || t.profile_fan;
+              })()}</div><div className="hsub">{t.conv_sub}</div></div>
             </div>
             <div className="content">
               {(conversations[activeConv] || []).length === 0 && (
@@ -4452,17 +4488,8 @@ export default function App() {
               )}
               {!viewedProfileLoading && viewedProfile && (() => {
                 const following = isFollowing(followingUsers, viewedProfile.id);
-                const rel = relationWith(viewedProfile.id);
                 const theirStories = visibleStories.filter((st) => st.authorId === viewedProfile.id);
-                const openMessage = () => {
-                  if (rel === "friends" || friends.includes(viewedProfile.id)) {
-                    setActiveConv(viewedProfile.id);
-                    go("conversation");
-                  } else {
-                    setCommunityTab("messages");
-                    go("amis");
-                  }
-                };
+                const openMessage = () => openDirectMessage(viewedProfile.id, viewedProfile);
                 return (
                   <>
                     <ProfileHero
@@ -4481,6 +4508,9 @@ export default function App() {
                       tab={profileTab}
                       onTabChange={setProfileTab}
                       showStoriesTab={theirStories.length > 0}
+                      hasActiveStory={theirStories.length > 0}
+                      storyUnseen={theirStories.some((st) => !seenStories.includes(st.id))}
+                      onAvatarClick={theirStories.length ? () => openStory(theirStories[0].id) : null}
                       primaryActions={
                         <ProfileCtaButton
                           variant="primary"

@@ -358,5 +358,6 @@
   "profile_message": "Message",
   "profile_grid_empty": "No posts yet.",
   "profile_stories_empty": "No active Story (24h).",
-  "profile_cover_hint": "Generated cover — custom photo soon."
+  "profile_cover_hint": "Generated cover — custom photo soon.",
+  "profile_open_story": "View Story"
 }
