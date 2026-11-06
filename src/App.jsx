@@ -2319,6 +2319,19 @@ export default function App() {
         .story-cam-mode.active { color:#fff; transform:scale(1.06); }
         .story-cam-mode.quiet { letter-spacing:.04em; text-transform:none; font-weight:600; font-size:12.5px; color:rgba(232,184,75,.75); }
         .story-cam-mode.quiet:hover, .story-cam-mode.quiet:focus-visible { color:var(--gold); }
+        .story-cam-filters { position:absolute; right:8px; top:50%; transform:translateY(-50%); z-index:3; display:flex; flex-direction:column; gap:8px; max-height:58%; overflow-y:auto; padding:4px; scrollbar-width:none; }
+        .story-cam-filters::-webkit-scrollbar { width:0; height:0; }
+        .story-cam-filter-chip { border:none; background:transparent; color:#fff; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; padding:0; filter:drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
+        .story-cam-filter-chip:disabled { opacity:.45; }
+        .story-cam-filter-swatch { width:36px; height:36px; border-radius:50%; border:1.5px solid rgba(255,255,255,.55); background:linear-gradient(135deg,#4a5d78,#1a2230 55%,#C8443C); }
+        .story-cam-filter-chip.active .story-cam-filter-swatch { border-color:var(--gold); box-shadow:0 0 0 2px rgba(232,184,75,.35); }
+        .story-cam-filter-name { font-size:9.5px; font-weight:600; letter-spacing:.02em; max-width:46px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; }
+        .story-cam-filter-chip.active .story-cam-filter-name { color:var(--gold); }
+        .story-cam-rec-meter { position:absolute; left:16px; right:16px; top:58px; z-index:3; display:flex; align-items:center; gap:10px; }
+        .story-cam-rec-bar { flex:1; height:3px; border-radius:99px; background:rgba(255,255,255,.22); overflow:hidden; position:relative; transform:none !important; }
+        .story-cam-rec-bar::after { content:""; position:absolute; inset:0; width:100%; background:linear-gradient(90deg,var(--gold),#C8443C); transform:scaleX(var(--p,0)); transform-origin:left center; }
+        .story-cam-rec-time { min-width:28px; text-align:right; color:#fff; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; text-shadow:0 1px 3px rgba(0,0,0,.5); }
+
 .story-review-shell { display:flex; flex-direction:column; height:100%; }
         .story-review-bleed { position:absolute; inset:0; z-index:50; background:#000; overflow:hidden; }
         .story-review-bleed .story-review-media { position:absolute; inset:0; }

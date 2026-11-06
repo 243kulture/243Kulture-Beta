@@ -4,6 +4,9 @@
  */
 export const DEFAULT_STORY_DRAFT_TYPE = "image";
 
+/** Hard cap for Story video recording (seconds). */
+export const STORY_VIDEO_MAX_SECONDS = 30;
+
 /** Portrait Story target: sharp on GSM, not 4K/8K "max at all costs". */
 export const STORY_CAPTURE = {
   /** Ideal short×long for phone Stories (720p portrait). */
@@ -21,6 +24,29 @@ export const STORY_CAPTURE = {
   videoBitsPerSecond: 2_800_000,
   audioBitsPerSecond: 96_000,
 };
+
+/**
+ * Lightweight CSS filter presets (no AR/ML).
+ * Applied on preview via CSS; baked into photo/video canvas when capturing.
+ */
+export const STORY_FILTERS = [
+  { id: "naturel", css: "none", labelKey: "story_filter_naturel" },
+  { id: "chaud", css: "contrast(1.06) saturate(1.18) sepia(0.18) brightness(1.03)", labelKey: "story_filter_chaud" },
+  { id: "cool", css: "contrast(1.06) saturate(0.92) hue-rotate(18deg) brightness(1.02)", labelKey: "story_filter_cool" },
+  { id: "nb", css: "grayscale(1) contrast(1.12) brightness(1.02)", labelKey: "story_filter_nb" },
+  { id: "vivid", css: "contrast(1.14) saturate(1.38) brightness(1.04)", labelKey: "story_filter_vivid" },
+  { id: "kin", css: "contrast(1.1) saturate(1.22) sepia(0.1) brightness(1.03)", labelKey: "story_filter_kin" },
+];
+
+export const DEFAULT_STORY_FILTER_ID = "naturel";
+
+export function getStoryFilter(id) {
+  return STORY_FILTERS.find((f) => f.id === id) || STORY_FILTERS[0];
+}
+
+export function storyFilterCss(id) {
+  return getStoryFilter(id).css || "none";
+}
 
 export function createStoryDraftReset(colors = []) {
   const palette = Array.isArray(colors) && colors.length ? colors : ["#C8443C"];
@@ -90,4 +116,10 @@ export function storyRecorderOptions(mimeType = "") {
   };
   if (mimeType) opts.mimeType = mimeType;
   return opts;
+}
+
+/** Remaining seconds for UI countdown (clamped). */
+export function storyVideoSecondsLeft(elapsedMs, maxSeconds = STORY_VIDEO_MAX_SECONDS) {
+  const left = maxSeconds - elapsedMs / 1000;
+  return Math.max(0, Math.ceil(left));
 }
