@@ -1,16 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, SwitchCamera, Video } from "lucide-react";
+import { Image as ImageIcon, SwitchCamera, Type as TypeIcon, Video, X } from "lucide-react";
 import { cameraErrorKey, stopMediaStream } from "../lib/storyCreate.js";
 
 /**
- * In-app Story camera: live getUserMedia preview, photo shutter, video record.
- * Stops all tracks on unmount / mode leave. Falls back to gallery when blocked.
+ * Full-bleed Story camera (Instagram/TikTok-style overlays, 243Kulture identity).
+ * Live getUserMedia preview edge-to-edge; controls float on top.
+ * Stops all tracks on unmount / leave.
  */
 export default function StoryInAppCamera({
   mode = "image", // image | video
   t = {},
   onCaptureFile,
   onRequestGallery,
+  onClose,
+  onSelectMode, // (mode: image|video|text) => void
 }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -34,9 +37,7 @@ export default function StoryInAppCamera({
     const stream = streamRef.current;
     streamRef.current = null;
     if (stream) stopMediaStream(stream);
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    if (videoRef.current) videoRef.current.srcObject = null;
     setLive(false);
   }, []);
 
@@ -57,37 +58,30 @@ export default function StoryInAppCamera({
     stopStream();
 
     const wantAudio = mode === "video";
-    const videoConstraint = {
-      facingMode: { ideal: facing },
-      width: { ideal: 1080 },
-      height: { ideal: 1920 },
-    };
-
     try {
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraint,
+          video: {
+            facingMode: { ideal: facing },
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
+          },
           audio: wantAudio,
         });
       } catch (firstErr) {
-        // Retry without facingMode ideal / with simpler constraints
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: wantAudio,
-        });
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: wantAudio });
         if (!stream) throw firstErr;
       }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        try { await videoRef.current.play(); } catch { /* autoplay policies */ }
+        try { await videoRef.current.play(); } catch { /* autoplay */ }
       }
       setLive(true);
       setError("");
     } catch (err) {
-      const key = cameraErrorKey(err);
-      setError(t[key] || t.story_camera_unavailable || "Caméra indisponible. Utilise la galerie.");
+      setError(t[cameraErrorKey(err)] || t.story_camera_unavailable || "Caméra indisponible. Utilise la galerie.");
       setLive(false);
     } finally {
       setStarting(false);
@@ -116,6 +110,11 @@ export default function StoryInAppCamera({
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    // Mirror selfie stills so they match preview
+    if (facingMode === "user") {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.drawImage(video, 0, 0, w, h);
     canvas.toBlob((blob) => {
       if (!blob) return;
@@ -129,7 +128,6 @@ export default function StoryInAppCamera({
     const stream = streamRef.current;
     if (!stream || recording) return;
     chunksRef.current = [];
-    let recorder;
     const mimeCandidates = [
       "video/webm;codecs=vp9,opus",
       "video/webm;codecs=vp8,opus",
@@ -137,6 +135,7 @@ export default function StoryInAppCamera({
       "video/mp4",
     ];
     const mime = mimeCandidates.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported?.(m)) || "";
+    let recorder;
     try {
       recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
     } catch {
@@ -162,31 +161,50 @@ export default function StoryInAppCamera({
 
   const stopRecording = () => {
     try {
-      if (recorderRef.current && recorderRef.current.state !== "inactive") {
-        recorderRef.current.stop();
-      }
+      if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
     } catch { /* ignore */ }
     setRecording(false);
   };
 
+  const mirrored = facingMode === "user";
+
   return (
-    <div className="story-live-camera">
+    <div className="story-cam-shell" data-recording={recording ? "1" : "0"}>
       <video
         ref={videoRef}
-        className="story-live-video"
+        className={`story-cam-video${mirrored ? " mirrored" : ""}`}
         playsInline
         muted
         autoPlay
       />
+      <div className="story-cam-scrim top" />
+      <div className="story-cam-scrim bottom" />
+
+      {/* Top overlay — Instagram-like minimal */}
+      <div className="story-cam-top">
+        <button type="button" className="story-cam-icon-btn" onClick={onClose} aria-label="Close">
+          <X size={26} strokeWidth={2.2} />
+        </button>
+        <div className="story-cam-badge">
+          <span className="story-cam-badge-mark">243</span>
+          <span>{t.story_24h_badge || "Story 24h"}</span>
+        </div>
+        <button type="button" className="story-cam-icon-btn" onClick={flipCamera} aria-label="Flip camera">
+          <SwitchCamera size={22} strokeWidth={2.2} />
+        </button>
+      </div>
+
       {!live && (
-        <div className="story-live-fallback">
-          <Camera size={28} strokeWidth={1.6} color="#E8B84B" />
-          <div className="cam-title">{starting ? (t.story_camera_starting || "Ouverture de la caméra…") : (mode === "video" ? (t.story_video_title || "Filme ta vibe") : (t.story_camera_title || "Capture ta vibe"))}</div>
-          {error ? <div className="cam-sub" style={{ color: "#f3b4b4" }}>{error}</div> : (
-            <div className="cam-sub">{t.story_camera_sub || ""}</div>
-          )}
+        <div className="story-cam-fallback">
+          <div className="cam-title">
+            {starting
+              ? (t.story_camera_starting || "Ouverture de la caméra…")
+              : (mode === "video" ? (t.story_video_title || "Filme ta vibe") : (t.story_camera_title || "Capture ta vibe"))}
+          </div>
+          {error
+            ? <div className="cam-sub err">{error}</div>
+            : <div className="cam-sub">{t.story_camera_sub || ""}</div>}
           <button type="button" className="story-camera-cta" onClick={() => startStream(facingMode)}>
-            <Camera size={16} strokeWidth={2.2} />
             {t.story_retry_camera || t.story_open_camera || "Réessayer la caméra"}
           </button>
           <button type="button" className="story-gallery-link" onClick={() => onRequestGallery?.()}>
@@ -195,28 +213,62 @@ export default function StoryInAppCamera({
         </div>
       )}
 
-      {live && (
-        <div className="story-live-controls">
-          <button type="button" className="story-live-side" onClick={flipCamera} aria-label="Flip camera">
-            <SwitchCamera size={20} strokeWidth={2} />
+      {/* Bottom capture chrome */}
+      <div className="story-cam-bottom">
+        <div className="story-cam-modes" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            className={`story-cam-mode${mode === "image" ? " active" : ""}`}
+            onClick={() => onSelectMode?.("image")}
+          >{t.story_type_photo || "Photo"}</button>
+          <button
+            type="button"
+            role="tab"
+            className={`story-cam-mode${mode === "video" ? " active" : ""}`}
+            onClick={() => onSelectMode?.("video")}
+          >{t.story_type_video || "Vidéo"}</button>
+          <button
+            type="button"
+            role="tab"
+            className="story-cam-mode secondary"
+            onClick={() => onSelectMode?.("text")}
+          >
+            <TypeIcon size={12} strokeWidth={2.4} />
+            {t.story_type_text || "Texte"}
           </button>
+        </div>
+
+        <div className="story-cam-capture-row">
+          <button type="button" className="story-cam-gallery" onClick={() => onRequestGallery?.()} aria-label="Gallery">
+            <ImageIcon size={20} strokeWidth={2} />
+          </button>
+
           {mode === "image" ? (
-            <button type="button" className="story-shutter" onClick={capturePhoto} aria-label="Shutter" />
+            <button
+              type="button"
+              className="story-cam-shutter"
+              onClick={capturePhoto}
+              disabled={!live}
+              aria-label="Shutter"
+            >
+              <span className="story-cam-shutter-inner" />
+            </button>
           ) : (
             <button
               type="button"
-              className={`story-shutter video${recording ? " recording" : ""}`}
+              className={`story-cam-shutter video${recording ? " recording" : ""}`}
               onClick={recording ? stopRecording : startRecording}
+              disabled={!live && !recording}
               aria-label={recording ? "Stop" : "Record"}
             >
-              {recording ? <span className="rec-stop" /> : <Video size={18} strokeWidth={2.4} color="#0B0D12" />}
+              <span className={`story-cam-shutter-inner${recording ? " stop" : " rec"}`} />
             </button>
           )}
-          <button type="button" className="story-live-side ghost" onClick={() => onRequestGallery?.()}>
-            {t.story_from_gallery_short || "Galerie"}
-          </button>
+
+          <div className="story-cam-gallery spacer" aria-hidden="true" />
         </div>
-      )}
+      </div>
     </div>
   );
 }

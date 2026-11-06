@@ -342,5 +342,6 @@
   "story_retry_camera": "Camera opnieuw proberen",
   "story_from_gallery_short": "Galerij",
   "story_retake": "Opnieuw",
-  "story_record_unsupported": "Video-opname niet ondersteund. Gebruik de galerij."
+  "story_record_unsupported": "Video-opname niet ondersteund. Gebruik de galerij.",
+  "story_24h_badge": "Story 24u"
 }

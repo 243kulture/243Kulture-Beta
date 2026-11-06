@@ -342,5 +342,6 @@
   "story_retry_camera": "Retry camera",
   "story_from_gallery_short": "Gallery",
   "story_retake": "Retake",
-  "story_record_unsupported": "Video recording not supported here. Use the gallery."
+  "story_record_unsupported": "Video recording not supported here. Use the gallery.",
+  "story_24h_badge": "Story 24h"
 }
