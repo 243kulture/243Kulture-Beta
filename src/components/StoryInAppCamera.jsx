@@ -13,6 +13,7 @@ import {
   storyVideoConstraints,
   storyVideoSecondsLeft,
 } from "../lib/storyCreate.js";
+import { ensureCameraPermission, isNativePlatform, MEDIA_CONSENT } from "../lib/nativePlatform.js";
 
 /**
  * Full-bleed Story camera — GSM-friendly quality, CSS filter presets, 30s video cap.
@@ -86,6 +87,16 @@ export default function StoryInAppCamera({
       setError(t.story_camera_insecure || "La caméra nécessite une connexion sécurisée (HTTPS).");
       setLive(false);
       return;
+    }
+
+    if (isNativePlatform()) {
+      const perm = await ensureCameraPermission();
+      if (!perm.ok) {
+        setError(perm.message || MEDIA_CONSENT.cameraWhy);
+        setLive(false);
+        setStarting(false);
+        return;
+      }
     }
 
     setStarting(true);

@@ -24,3 +24,18 @@ yarn-error.log*
 
 # Cache Vite
 .vite/
+
+# Capacitor / Android build outputs (keep android/ project)
+android/app/build/
+android/.gradle/
+android/build/
+android/captures/
+android/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+# Android signing secrets (never commit)
+android/keystore.properties
+*.jks
+*.keystore
