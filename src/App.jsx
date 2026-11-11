@@ -18,6 +18,14 @@ import { createStoryDraftReset, DEFAULT_STORY_DRAFT_TYPE } from "./lib/storyCrea
 import {
   applyThemeToDocument, persistThemeLocal, readStoredTheme,
 } from "./lib/theme.js";
+import {
+  PUSH_CONSENT,
+  disablePushLocally,
+  enablePushLocally,
+  ensurePushPermission,
+  markPushPreambleSeen,
+  readPushPreferences,
+} from "./lib/pushNotifications.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
@@ -695,7 +703,8 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [player, setPlayer] = useState(null); // {artist,title,sub,id}
   const [playMode, setPlayMode] = useState("watch");
-  const [notifOn, setNotifOn] = useState(true);
+  const [notifOn, setNotifOn] = useState(() => !!readPushPreferences().master);
+  const [pushConsentHint, setPushConsentHint] = useState("");
   const [appearance, setAppearance] = useState(() => readStoredTheme());
   const [articleId, setArticleId] = useState("a1");
   const [heroIndex, setHeroIndex] = useState(0);
@@ -3392,8 +3401,34 @@ export default function App() {
               <div className="section-label" style={{ marginTop: 0 }}>{t.sec_notifs}</div>
               <div className="settings-row">
                 <div><div className="lab">{t.notif_toggle_lab}</div><div className="sub2">{t.notif_toggle_sub}</div></div>
-                <div className={`switch${notifOn ? " on" : ""}`} onClick={() => setNotifOn(!notifOn)} />
+                <div
+                  className={`switch${notifOn ? " on" : ""}`}
+                  role="switch"
+                  aria-checked={notifOn}
+                  onClick={async () => {
+                    if (notifOn) {
+                      disablePushLocally();
+                      setNotifOn(false);
+                      setPushConsentHint("");
+                      return;
+                    }
+                    // Consent-first: explain, then permission only on this user intent
+                    markPushPreambleSeen();
+                    setPushConsentHint(PUSH_CONSENT.why);
+                    const res = await ensurePushPermission({ userInitiated: true });
+                    if (res.ok) {
+                      enablePushLocally();
+                      setNotifOn(true);
+                      setPushConsentHint(res.message || PUSH_CONSENT.deniedKeepsAppUsable);
+                    } else {
+                      disablePushLocally();
+                      setNotifOn(false);
+                      setPushConsentHint(res.message || `${PUSH_CONSENT.settingsHint} ${PUSH_CONSENT.deniedKeepsAppUsable}`);
+                    }
+                  }}
+                />
               </div>
+              {pushConsentHint ? <div className="note" style={{ marginBottom: 12 }}>{pushConsentHint}</div> : null}
               <div className="card" onClick={openNotifs}>
                 <div className="thumb">🔔</div>
                 <div><div className="card-title">{t.notif_see}</div><div className="card-sub">{t.notif_see_sub}</div></div>
