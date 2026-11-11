@@ -355,5 +355,14 @@
   "story_filter_cool": "Cool",
   "story_filter_nb": "N&B",
   "story_filter_vivid": "Vivid",
-  "story_filter_kin": "Kin"
+  "story_filter_kin": "Kin",
+  "profile_tab_publications": "Publications",
+  "profile_tab_stories": "Stories",
+  "profile_tab_about": "Compte",
+  "profile_edit": "Modifier",
+  "profile_message": "Message",
+  "profile_grid_empty": "Aucune publication pour l’instant.",
+  "profile_stories_empty": "Pas de Story active (24 h).",
+  "profile_cover_hint": "Couverture générée — photo personnalisée bientôt.",
+  "profile_open_story": "Voir la Story"
 }
