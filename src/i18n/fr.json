@@ -355,5 +355,10 @@
   "story_filter_cool": "Cool",
   "story_filter_nb": "N&B",
   "story_filter_vivid": "Vivid",
-  "story_filter_kin": "Kin"
+  "story_filter_kin": "Kin",
+  "share_via": " — via 243Kulture",
+  "share_fallback": "Partager: {title}\n(Copie le lien ou utilise le partage du téléphone)",
+  "offline_banner": "Hors ligne — tu lis le dernier fil en cache.",
+  "offline_queued": "Note mise en file. Elle sera envoyée au retour du réseau.",
+  "offline_queue_full": "File hors ligne pleine. Réessaie plus tard."
 }

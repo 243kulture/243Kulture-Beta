@@ -97,6 +97,11 @@
   "notif_toggle_sub": "Nouveaux lives, articles et concerts",
   "notif_see": "Voir mes notifications",
   "notif_see_sub": "Historique des alertes",
+  "sec_appearance": "Nmonoko",
+  "appearance_system": "Système",
+  "appearance_dark": "Mpimpa",
+  "appearance_light": "Nsuka",
+  "appearance_note": "Ntete: Mpimpa (Nuit 243). Système kelandaka thème ya téléphone.",
   "sec_lang": "Ndinga",
   "lang_note": "La traduction s'applique à l'interface (menus, titres). Les articles et vidéos restent dans leur langue d'origine.",
   "sec_reseaux": "Réseaux",
@@ -351,5 +356,10 @@
   "story_filter_cool": "Cool",
   "story_filter_nb": "N&B",
   "story_filter_vivid": "Vivid",
-  "story_filter_kin": "Kin"
+  "story_filter_kin": "Kin",
+  "share_via": " — na 243Kulture",
+  "share_fallback": "Kabula: {title}\n(Kopía lien to salela partage ya téléphone)",
+  "offline_banner": "Ke offline — ke mona fil ya nsuka mu cache.",
+  "offline_queued": "Note me zisi na file. Ke tinda ntangu réseau me vutuka.",
+  "offline_queue_full": "File ya offline me zala. Meka diaka na nima."
 }

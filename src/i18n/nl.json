@@ -97,6 +97,11 @@
   "notif_toggle_sub": "Nieuwe lives, artikelen en concerten",
   "notif_see": "Mijn meldingen bekijken",
   "notif_see_sub": "Meldingengeschiedenis",
+  "sec_appearance": "Uiterlijk",
+  "appearance_system": "Systeem",
+  "appearance_dark": "Donker",
+  "appearance_light": "Licht",
+  "appearance_note": "Standaard: Donker (Nuit 243). Systeem volgt het thema van je telefoon.",
   "sec_lang": "Taal",
   "lang_note": "Vertaling geldt voor de interface (menu's, titels). Artikelen en video's blijven in hun oorspronkelijke taal.",
   "sec_reseaux": "Sociale media",
@@ -350,5 +355,10 @@
   "story_filter_cool": "Cool",
   "story_filter_nb": "Z/W",
   "story_filter_vivid": "Vivid",
-  "story_filter_kin": "Kin"
+  "story_filter_kin": "Kin",
+  "share_via": " — via 243Kulture",
+  "share_fallback": "Delen: {title}\n(Kopieer de link of gebruik delen op je telefoon)",
+  "offline_banner": "Offline — je ziet de laatst gecachte feed.",
+  "offline_queued": "Notitie in wachtrij. Wordt verzonden als je weer online bent.",
+  "offline_queue_full": "Offlinewachtrij vol. Probeer later opnieuw."
 }

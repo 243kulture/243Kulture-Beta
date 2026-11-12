@@ -97,6 +97,11 @@
   "notif_toggle_sub": "Nouveaux lives, articles et concerts",
   "notif_see": "Voir mes notifications",
   "notif_see_sub": "Historique des alertes",
+  "sec_appearance": "Bomɛnɛ",
+  "appearance_system": "Système",
+  "appearance_dark": "Botíma",
+  "appearance_light": "Boi",
+  "appearance_note": "Ya yambo: Botíma (Nuit 243). Système elandaka thème ya téléphone.",
   "sec_lang": "Lokɔ́ta",
   "lang_note": "La traduction s'applique à l'interface (menus, titres). Les articles et vidéos restent dans leur langue d'origine.",
   "sec_reseaux": "Réseaux",
@@ -351,5 +356,10 @@
   "story_filter_cool": "Cool",
   "story_filter_nb": "N&B",
   "story_filter_vivid": "Vivid",
-  "story_filter_kin": "Kin"
+  "story_filter_kin": "Kin",
+  "share_via": " — na 243Kulture",
+  "share_fallback": "Kokabola: {title}\n(Kopía lien to salela partage ya téléphone)",
+  "offline_banner": "Ozali offline — ozali komona fil ya nsuka na cache.",
+  "offline_queued": "Note etiámí na file. Ekotíndama soki réseau ezali lisusu.",
+  "offline_queue_full": "File ya offline ezali cotí. Meka lisusu na nsima."
 }

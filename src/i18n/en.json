@@ -355,5 +355,10 @@
   "story_filter_cool": "Cool",
   "story_filter_nb": "B&W",
   "story_filter_vivid": "Vivid",
-  "story_filter_kin": "Kin"
+  "story_filter_kin": "Kin",
+  "share_via": " — via 243Kulture",
+  "share_fallback": "Share: {title}\n(Copy the link or use your phone’s share sheet)",
+  "offline_banner": "You’re offline — showing the last cached feed.",
+  "offline_queued": "Note queued. It will send when you’re back online.",
+  "offline_queue_full": "Offline queue is full. Try again later."
 }

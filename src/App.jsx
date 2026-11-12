@@ -26,6 +26,22 @@ import {
   markPushPreambleSeen,
   readPushPreferences,
 } from "./lib/pushNotifications.js";
+import {
+  buildDeepLink,
+  clearBrowserDeepLink,
+  listenForAppUrlOpen,
+  parseDeepLink,
+  parseNotificationTarget,
+  readBrowserDeepLink,
+  routeFromDeepLink,
+} from "./lib/deepLinks.js";
+import { track } from "./lib/analytics.js";
+import {
+  cacheFeed,
+  enqueueOfflineNote,
+  isProbablyOffline,
+  readCachedFeed,
+} from "./lib/offlineLite.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
@@ -801,8 +817,12 @@ export default function App() {
   const [draftMedia, setDraftMedia] = useState(null); // preview data URL
   const [draftFile, setDraftFile] = useState(null); // original File for Supabase Storage
   const [, forceTick] = useState(0);
+  const [pendingDeepLink, setPendingDeepLink] = useState(null);
+  const [highlightPostId, setHighlightPostId] = useState(null);
+  const [offlineFeedNote, setOfflineFeedNote] = useState("");
+  const [usingCachedFeed, setUsingCachedFeed] = useState(false);
 
-  const t = I18N[lang];
+  const t = getUiStrings(lang);
   const tl = LEGAL_I18N[contentLang(lang)] || LEGAL_I18N.fr;
 
   // ---------- Contenu localisé selon la langue choisie ----------
@@ -872,6 +892,27 @@ export default function App() {
     const redirect = redirectForGate(gate, id);
     if (redirect) { setScreen(redirect); return; }
     setScreen(id);
+    track("screen_view", { screen: id });
+  };
+
+  const applyDeepLinkIntent = (parsed) => {
+    const route = routeFromDeepLink(parsed);
+    if (!route?.screen) return false;
+    const redirect = redirectForGate(gate, route.screen);
+    if (redirect) {
+      setPendingDeepLink(parsed);
+      setScreen(redirect);
+      return false;
+    }
+    if (route.communityTab) setCommunityTab(route.communityTab);
+    if (route.highlightPostId) setHighlightPostId(route.highlightPostId);
+    if (route.profileId) {
+      openPublicProfile(route.profileId);
+      return true;
+    }
+    setScreen(route.screen);
+    track("deep_link_open", { kind: parsed.kind || "unknown" });
+    return true;
   };
 
   const applyAppearance = (mode) => {
@@ -957,10 +998,18 @@ export default function App() {
     else dbInsert("favorites", { user_id: user?.id, item_id: id, title, sub, icon });
   };
 
-  const shareItem = (title) => {
-    const shareData = { title, text: title + " — via 243Kulture", url: "https://243kulture.app" };
+  const shareItem = (title, linkOpts = null) => {
+    const url = linkOpts
+      ? buildDeepLink(linkOpts)
+      : buildDeepLink({ kind: "home" });
+    const via = t.share_via || " — via 243Kulture";
+    const shareData = { title: title || "243Kulture", text: `${title || "243Kulture"}${via}`, url };
+    track("share", { kind: linkOpts?.kind || "home" });
     if (navigator.share) navigator.share(shareData).catch(() => {});
-    else alert("Partager: " + title + "\n(branche navigator.share ou un lien réel ici)");
+    else {
+      const fallback = (t.share_fallback || "Share: {title}").replace("{title}", title || url);
+      alert(`${fallback}\n${url}`);
+    }
   };
 
   const playVideo = (artist, title, sub, id) => {
@@ -995,7 +1044,7 @@ export default function App() {
       const oauthDesc = params.get("error_description") || hashParams.get("error_description") || "";
       if (oauthErr) {
         const cancelled = /access_denied|cancelled|canceled/i.test(`${oauthErr} ${oauthDesc}`);
-        setAuthMessage(cancelled ? I18N[lang]?.oauth_cancelled || "Connexion Google annulée." : (I18N[lang]?.oauth_error || "Connexion Google impossible. Réessaie."));
+        setAuthMessage(cancelled ? (getUiStrings(lang).oauth_cancelled || "Connexion Google annulée.") : (getUiStrings(lang).oauth_error || "Connexion Google impossible. Réessaie."));
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch { /* ignore */ }
@@ -1020,6 +1069,29 @@ export default function App() {
     const redirect = redirectForGate(gate, screen);
     if (redirect && redirect !== screen) setScreen(redirect);
   }, [gate, screen]);
+
+  // ---------- Deep links (web path + Capacitor appUrlOpen when present) ----------
+  useEffect(() => {
+    const fromBrowser = readBrowserDeepLink();
+    if (fromBrowser) {
+      setPendingDeepLink(fromBrowser);
+      clearBrowserDeepLink();
+    }
+    let unsub = () => {};
+    listenForAppUrlOpen((url) => {
+      const parsed = parseDeepLink(url);
+      if (parsed) setPendingDeepLink(parsed);
+    }).then((fn) => { unsub = fn; });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!pendingDeepLink) return;
+    const ok = applyDeepLinkIntent(pendingDeepLink);
+    if (ok) setPendingDeepLink(null);
+    // Retry when gate opens (pending kept until allowed)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDeepLink, gate, user?.id]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) {
@@ -1108,9 +1180,28 @@ export default function App() {
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) return;
     (async () => {
+      if (isProbablyOffline()) {
+        const cached = readCachedFeed();
+        if (cached.posts.length) {
+          setPosts(cached.posts.map((p) => ({
+            id: p.id,
+            authorId: p.author_id,
+            author: p.author_name || "…",
+            icon: "🎶",
+            time: p.created_at ? new Date(p.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }) : "",
+            text: p.text || "",
+            media_url: null,
+            media_type: null,
+            offline_cached: true,
+          })));
+          setUsingCachedFeed(true);
+          setOfflineFeedNote(t.offline_banner || "");
+        }
+        return;
+      }
       const { data: postData, error: postError } = await supabase.from("posts").select("id, user_id, text, media_url, media_type, created_at, profiles(display_name, avatar_icon)").order("created_at", { ascending: false }).limit(50);
       if (!postError && postData) {
-        setPosts(postData.map((p) => ({
+        const mapped = postData.map((p) => ({
           id: p.id,
           authorId: p.user_id,
           author: p.user_id === user.id ? "Toi" : (p.profiles?.display_name || "Membre"),
@@ -1119,7 +1210,17 @@ export default function App() {
           text: p.text || "",
           media_url: p.media_url || null,
           media_type: p.media_type || null,
+        }));
+        setPosts(mapped);
+        cacheFeed(mapped.map((p) => ({
+          id: p.id,
+          text: p.text,
+          author_id: p.authorId,
+          display_name: p.author,
+          created_at: p.time,
         })));
+        setUsingCachedFeed(false);
+        setOfflineFeedNote("");
       }
       const { data: commentData, error: commentError } = await supabase.from("post_comments").select("id, post_id, user_id, parent_id, text, created_at, profiles(display_name)").order("created_at", { ascending: true }).limit(500);
       if (!commentError && commentData) {
@@ -1492,6 +1593,9 @@ export default function App() {
         text: n.text,
         type: n.type,
         actor_id: n.actor_id,
+        deep_link: n.deep_link || null,
+        entity_type: n.entity_type || null,
+        entity_id: n.entity_id || null,
         unread: !n.read_at,
         time: new Date(n.created_at).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" }),
         icon: notificationIcon(n.type),
@@ -1770,6 +1874,18 @@ export default function App() {
 
   const addPost = async () => {
     if (!newPost.trim() && !postMedia) return;
+    // Offline lite: text-only notes go to a local queue (no media upload offline).
+    if (isProbablyOffline() && newPost.trim() && !postMedia) {
+      const queued = enqueueOfflineNote(newPost.trim());
+      if (queued.ok) {
+        setOfflineFeedNote(t.offline_queued || "");
+        setNewPost("");
+        track("offline_note_queued");
+      } else if (queued.reason === "queue_full") {
+        setOfflineFeedNote(t.offline_queue_full || "");
+      }
+      return;
+    }
     const localId = "post" + Date.now();
     let mediaUrl = postMediaPreview;
     if (isSupabaseConfigured && user?.id && postMedia) {
@@ -4025,6 +4141,9 @@ export default function App() {
                         <div className={`subtab${feedMode === "pourtoi" ? " selected" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</div>
                       </div>
                       <div className="feed-mode-hint">{feedMode === "abonnements" ? t.feed_mode_subs_hint : t.feed_mode_foryou_hint}</div>
+                      {(usingCachedFeed || offlineFeedNote) && (
+                        <div className="note" style={{ marginBottom: 8 }}>{offlineFeedNote || t.offline_banner}</div>
+                      )}
                       <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
                         <input type="text" placeholder={t.post_placeholder} value={newPost}
                           onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
@@ -4047,7 +4166,7 @@ export default function App() {
                       {visibleFeedPosts.map((p) => {
                         const comments = commentsByPost[p.id] || [];
                         return (
-                        <div className="post-card" key={p.id}>
+                        <div className={`post-card${highlightPostId && highlightPostId === p.id ? " deep-link-target" : ""}`} key={p.id} data-post-id={p.id}>
                           <div className="post-head">
                             <div className="post-avatar" style={{ cursor: p.authorId ? "pointer" : "default" }} onClick={() => openAuthorProfile(p.authorId)}>{p.icon}</div>
                             <div>
@@ -4065,7 +4184,7 @@ export default function App() {
                             {DEBATE_REACTIONS.slice(0,3).map((emoji) => <button key={emoji} className={postReactions[p.id] === emoji ? "active" : ""} onClick={() => reactPost(p.id, emoji)}>{emoji}</button>)}
                             <button onClick={() => setCommentDrafts((d) => ({ ...d, [p.id]: d[p.id] ?? "" }))}><MessageCircle size={16}/> {comments.length || ""}</button>
                             <button onClick={() => repostPost(p)} className={repostedPostIds.includes(p.id) ? "active" : ""}><Repeat2 size={16}/></button>
-                            <button onClick={() => shareItem(p.text)}><Share2 size={16}/></button>
+                            <button onClick={() => shareItem(p.text, p.id ? { kind: "post", postId: p.id } : null)}><Share2 size={16}/></button>
                           </div>
                           <div className="comments-box">
                             {comments.filter((c) => !c.parent_id).map((c) => (
@@ -4395,9 +4514,12 @@ export default function App() {
                 }
                 return visibleNotifs.map((n, i) => (
                   <div
-                    className={`notif-item${n.unread ? " unread" : ""}${n.actor_id ? " clickable" : ""}`}
+                    className={`notif-item${n.unread ? " unread" : ""}${(n.actor_id || n.deep_link) ? " clickable" : ""}`}
                     key={n.id || `mock-${i}`}
-                    onClick={() => n.actor_id && openPublicProfile(n.actor_id)}
+                    onClick={() => {
+                      const target = parseNotificationTarget(n);
+                      if (target) applyDeepLinkIntent(target);
+                    }}
                   >
                     <div className="nic">{n.icon || "💬"}</div>
                     <div><div className="ntxt">{n.text}</div><div className="ntime">{n.time}</div></div>
