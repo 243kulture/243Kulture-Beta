@@ -67,12 +67,18 @@ Pas d'accès communauté / fil / stories sans session.
 
 ## 3. Authentification
 
-- **Google** : Dashboard → Authentication → Providers → Google (Client ID /
-  Secret depuis Google Cloud Console ; redirect
-  `https://<projet>.supabase.co/auth/v1/callback`).
+- **Google** : client prêt dans l'app ; activer le provider dans le Dashboard
+  avec Client ID / Secret Google Cloud (ne jamais les committer). Guide exact
+  des URLs : [`docs/GOOGLE_OAUTH_AUTH_URLS.md`](docs/GOOGLE_OAUTH_AUTH_URLS.md).
+  Redirect plateforme : `https://<projet>.supabase.co/auth/v1/callback`.
 - **E-mail + mot de passe** + récupération : actifs dans l'app.
 - **Meta / TikTok** : non affichés tant que les providers OAuth ne sont pas
   réellement configurés (les boutons redirigent vers l'auth e-mail).
+- **Suppression de compte** : Profil → Compte → confirmer `DELETE` → Edge
+  Function `delete-account` (fallback file SQL si Edge absente). Voir
+  [`docs/P1_COMPLIANCE_AUTH.md`](docs/P1_COMPLIANCE_AUTH.md).
+- **Signalement** : profil public / post / story → file `moderation_reports`
+  (`pending`, **pas de ban auto**).
 
 Après déploiement, ajoute l'URL du site dans Supabase → Authentication →
 URL Configuration (**Site URL** + **Redirect URLs**).
