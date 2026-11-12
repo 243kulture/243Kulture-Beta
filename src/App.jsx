@@ -42,10 +42,20 @@ import {
   isProbablyOffline,
   readCachedFeed,
 } from "./lib/offlineLite.js";
+import {
+  ACCOUNT_DELETE_CONTACT,
+  deleteAccountEndToEnd,
+  isDeleteConfirmValid,
+} from "./lib/accountDeletion.js";
+import {
+  REPORT_REASONS,
+  submitModerationReport,
+} from "./lib/moderation.js";
+import { isGoogleProviderDisabledError } from "./lib/googleOAuth.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
-  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2 } from "lucide-react";
+  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2, Flag } from "lucide-react";
 
 /*
  * ==========================================================================
@@ -526,7 +536,7 @@ const LEGAL_I18N = {
       ["Modération, signalement et sanctions", "Tout contenu ou compte peut être signalé (contenu illégal, harcèlement, menace, atteinte à la vie privée, usurpation, haine, escroquerie, propriété intellectuelle). Selon la gravité : avertissement, limitation de fonctionnalités, retrait de contenu, suspension ou fermeture du compte, de façon proportionnée."],
       ["Contestation", "Pour les décisions qui l'exigent, une explication est fournie et une contestation reste possible : décision → motif → contestation → réexamen."],
       ["Responsabilité", "243Kulture met en œuvre des mesures de modération raisonnables, mais chaque utilisateur reste responsable de ses propres contenus dans les limites du droit applicable."],
-      ["Résiliation", "Tu peux supprimer ton compte à tout moment depuis ton profil."],
+      ["Résiliation", "Tu peux supprimer ton compte à tout moment depuis Profil → Compte → Supprimer mon compte (confirmation DELETE), ou en écrivant à contact@243kulture.app."],
     ],
     confNote: "Résumé structuré — la version complète sera publiée sur le site (confidentialite.html) avant le lancement.",
     confSections: [
@@ -564,7 +574,7 @@ const LEGAL_I18N = {
       ["Bokengeli, kosakola mpe etumbu", "Contenu to compte nyonso ekoki kosakolama (contenu ya mabe, kotiola, komeka koboma, kobuka bomoi, kozwa esika ya moto mosusu, koyina, escroquerie, bomengo ya makanisi). Kolanda bozito : likebisi, kokitisa ba fonctions, kolongolama ya contenu, kokanga to kokanga libela compte, na ndenge ekokani."],
       ["Koboya mokano", "Mpo na bikateli oyo esengi, ndimbola epesamaka mpe okoki koboya : ekateli → ntina → koboya → kotala lisusu."],
       ["Mokumba", "243Kulture esalaka mikano ya bokengeli ya malamu, kasi moto na moto atikali na mokumba ya makambo na ye kolanda mibeko."],
-      ["Kosukisa", "Okoki kolongola compte na yo ntango nyonso wuta na profil na yo."],
+      ["Kosukisa", "Okoki kolongola compte na yo ntango nyonso wuta na Profil → Compte → Kolongola compte na ngai (koma DELETE), to kokoma na contact@243kulture.app."],
     ],
     confNote: "Mwa mokuse ya bosembo — bokoki mobimba ekozala na site (confidentialite.html) liboso ya kobanda.",
     confSections: [
@@ -602,7 +612,7 @@ const LEGAL_I18N = {
       ["Moderation, reporting and sanctions", "Any content or account can be reported (illegal content, harassment, threats, privacy violations, impersonation, hate, scams, IP infringement). Depending on severity: warning, feature restriction, content removal, suspension, or account closure, applied proportionately."],
       ["Appeals", "For decisions that require it, an explanation is provided and an appeal remains possible: decision → reason → appeal → review."],
       ["Liability", "243Kulture applies reasonable moderation measures, but each user remains responsible for their own content within the limits of applicable law."],
-      ["Termination", "You can delete your account at any time from your profile."],
+      ["Termination", "You can delete your account at any time from Profile → Account → Delete my account (type DELETE to confirm), or by emailing contact@243kulture.app."],
     ],
     confNote: "Structured summary — the full version will be published on the website (confidentialite.html) before launch.",
     confSections: [
@@ -640,7 +650,7 @@ const LEGAL_I18N = {
       ["Moderatie, melding en sancties", "Elke inhoud of account kan gemeld worden (illegale inhoud, pesten, bedreiging, privacyschending, identiteitsdiefstal, haat, oplichting, inbreuk op intellectueel eigendom). Naargelang de ernst: waarschuwing, functiebeperking, verwijdering van inhoud, schorsing of sluiting van het account, op evenredige wijze."],
       ["Bezwaar", "Voor beslissingen die dit vereisen, wordt een uitleg gegeven en blijft bezwaar mogelijk: beslissing → reden → bezwaar → herziening."],
       ["Aansprakelijkheid", "243Kulture past redelijke moderatiemaatregelen toe, maar elke gebruiker blijft verantwoordelijk voor zijn eigen inhoud binnen de grenzen van het toepasselijke recht."],
-      ["Beëindiging", "Je kunt je account op elk moment verwijderen via je profiel."],
+      ["Beëindiging", "Je kunt je account op elk moment verwijderen via Profiel → Account → Mijn account verwijderen (typ DELETE), of mail naar contact@243kulture.app."],
     ],
     confNote: "Gestructureerde samenvatting — de volledige versie wordt vóór de lancering op de website gepubliceerd (confidentialite.html).",
     confSections: [
@@ -821,6 +831,15 @@ export default function App() {
   const [highlightPostId, setHighlightPostId] = useState(null);
   const [offlineFeedNote, setOfflineFeedNote] = useState("");
   const [usingCachedFeed, setUsingCachedFeed] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteAccountBusy, setDeleteAccountBusy] = useState(false);
+  const [deleteAccountMessage, setDeleteAccountMessage] = useState("");
+  const [reportTarget, setReportTarget] = useState(null); // { targetType, targetId, targetUserId, label }
+  const [reportReason, setReportReason] = useState("spam");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
 
   const t = getUiStrings(lang);
   const tl = LEGAL_I18N[contentLang(lang)] || LEGAL_I18N.fr;
@@ -1367,8 +1386,7 @@ export default function App() {
     if (error || !data?.url) {
       setAuthLoading(false);
       const msg = error?.message || t.oauth_error;
-      const disabled = /not enabled|unsupported provider/i.test(msg);
-      setAuthMessage(disabled ? t.oauth_provider_disabled : msg);
+      setAuthMessage(isGoogleProviderDisabledError(msg) ? t.oauth_provider_disabled : msg);
       return;
     }
     try {
@@ -1376,9 +1394,8 @@ export default function App() {
       if (probe.status >= 400) {
         const body = await probe.json().catch(() => ({}));
         const msg = body.msg || body.error_description || body.message || t.oauth_error;
-        const disabled = /not enabled|unsupported provider/i.test(msg);
         setAuthLoading(false);
-        setAuthMessage(disabled ? t.oauth_provider_disabled : msg);
+        setAuthMessage(isGoogleProviderDisabledError(msg) ? t.oauth_provider_disabled : msg);
         return;
       }
     } catch {
@@ -1402,7 +1419,92 @@ export default function App() {
     setHasCurrentCgu(false);
     setCguChecked(false);
     setCreatorOnboardingChoice(null);
+    setDeleteAccountOpen(false);
+    setDeleteConfirmText("");
+    setDeleteAccountMessage("");
+    setReportTarget(null);
     setScreen(readStoredLang() ? "onboarding" : "languagePicker");
+  };
+
+  const openReportSheet = (target) => {
+    if (!user) {
+      setReportMessage(t.report_login_required);
+      return;
+    }
+    setReportMessage("");
+    setReportReason("spam");
+    setReportDetails("");
+    setReportTarget(target);
+  };
+
+  const closeReportSheet = () => {
+    setReportTarget(null);
+    setReportBusy(false);
+    setReportDetails("");
+    setReportMessage("");
+  };
+
+  const submitReportSheet = async () => {
+    if (!reportTarget || reportBusy) return;
+    if (!isSupabaseConfigured || !supabase) {
+      setReportMessage(t.auth_backend_required);
+      return;
+    }
+    setReportBusy(true);
+    setReportMessage("");
+    const res = await submitModerationReport({
+      supabase,
+      reporterId: user?.id,
+      targetType: reportTarget.targetType,
+      targetId: reportTarget.targetId || null,
+      targetUserId: reportTarget.targetUserId || null,
+      reason: reportReason,
+      details: reportDetails,
+    });
+    setReportBusy(false);
+    if (!res.ok) {
+      setReportMessage(res.message || t.report_failed);
+      return;
+    }
+    setReportMessage(t.report_thanks);
+    setTimeout(() => closeReportSheet(), 900);
+  };
+
+  const openDeleteAccountSheet = () => {
+    setDeleteAccountMessage("");
+    setDeleteConfirmText("");
+    setDeleteAccountOpen(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (deleteAccountBusy) return;
+    if (!isDeleteConfirmValid(deleteConfirmText)) {
+      setDeleteAccountMessage(t.account_delete_confirm_label);
+      return;
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      setDeleteAccountMessage(t.auth_backend_required);
+      return;
+    }
+    setDeleteAccountBusy(true);
+    setDeleteAccountMessage("");
+    const res = await deleteAccountEndToEnd({ supabase, confirm: deleteConfirmText });
+    setDeleteAccountBusy(false);
+    if (!res.ok) {
+      setDeleteAccountMessage(res.message || t.account_delete_failed);
+      return;
+    }
+    setUser(null);
+    setHasCurrentCgu(false);
+    setCguChecked(false);
+    setDeleteAccountMessage(
+      res.mode === "hard_delete" ? t.account_delete_done_hard : t.account_delete_done_queued,
+    );
+    setTimeout(() => {
+      setDeleteAccountOpen(false);
+      setDeleteConfirmText("");
+      setScreen(readStoredLang() ? "onboarding" : "languagePicker");
+    }, 1200);
   };
 
   const saveDisplayName = () => {
@@ -2665,6 +2767,21 @@ export default function App() {
         .explore-tile .eic { display:block; margin:0 auto 6px; }
         .explore-tile .elab { font-size:10px; color:var(--muted); font-weight:600; }
         .logout-row { text-align:center; font-size:11.5px; color:var(--red); cursor:pointer; margin-top:6px; margin-bottom:16px; font-weight:600; }
+        .sheet-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.55); z-index:80; display:flex; align-items:flex-end; justify-content:center; }
+        .sheet-card { width:100%; background:var(--bg-elevated, var(--bg)); border:1px solid var(--glass-border); border-radius:18px 18px 0 0; padding:18px 16px 22px; max-height:85%; overflow:auto; }
+        .sheet-card .sheet-title { font-size:16px; font-weight:800; color:var(--text); margin-bottom:6px; }
+        .sheet-card .sheet-sub { font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.45; }
+        .sheet-card select, .sheet-card input[type="text"], .sheet-card textarea {
+          width:100%; background:var(--glass); border:1px solid var(--glass-border); border-radius:12px;
+          color:var(--text); padding:10px 12px; font-size:13px; margin-bottom:10px; font-family:inherit;
+        }
+        .sheet-actions { display:flex; gap:8px; margin-top:8px; }
+        .sheet-actions .sheet-btn { flex:1; text-align:center; padding:11px 12px; border-radius:12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+        .sheet-actions .sheet-btn.primary { background:var(--gold); color:#1a1200; }
+        .sheet-actions .sheet-btn.danger { background:rgba(232,90,90,0.18); color:var(--red); border:1px solid rgba(232,90,90,0.45); }
+        .sheet-actions .sheet-btn.ghost { background:var(--glass); color:var(--muted); border:1px solid var(--glass-border); }
+        .report-inline-btn { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; padding:6px 10px; border-radius:16px; border:1px solid var(--glass-border); background:transparent; }
+        .report-inline-btn:hover { color:var(--red); border-color:rgba(232,90,90,0.45); }
         .connected-pill { display:inline-flex; align-items:center; gap:6px; background:var(--glass); border:1px solid var(--glass-border); border-radius:20px; padding:4px 12px; font-size:10.5px; color:var(--gold); margin:0 auto 18px; }
         .artist-row { display:flex; gap:10px; overflow-x:auto; margin-bottom:16px; padding-bottom:2px; }
         .artist-chip { flex-shrink:0; width:72px; text-align:center; cursor:pointer; }
@@ -3467,6 +3584,20 @@ export default function App() {
                 <div className="profile-sub">{t.profile_notconnected}</div>
               )}
 
+              {user && (
+                <>
+                  <div className="section-label" style={{ marginTop: 0 }}>{t.sec_account}</div>
+                  <div className="settings-row" style={{ alignItems: "flex-start" }}>
+                    <div style={{ flex: 1, paddingRight: 10 }}>
+                      <div className="lab">{t.account_delete_title}</div>
+                      <div className="sub2">{t.account_delete_sub}</div>
+                    </div>
+                    <div className="friend-btn danger" onClick={openDeleteAccountSheet}>{t.account_delete_open}</div>
+                  </div>
+                  <div className="note" style={{ marginBottom: 14 }}>{ACCOUNT_DELETE_CONTACT}</div>
+                </>
+              )}
+
               <div className="card" onClick={() => go("favoris")}>
                 <div className="thumb"><Heart size={20} strokeWidth={2} /></div>
                 <div><div className="card-title">{t.favtitle}</div><div className="card-sub">{favorites.length} • {t.favtag}</div></div>
@@ -4185,6 +4316,18 @@ export default function App() {
                             <button onClick={() => setCommentDrafts((d) => ({ ...d, [p.id]: d[p.id] ?? "" }))}><MessageCircle size={16}/> {comments.length || ""}</button>
                             <button onClick={() => repostPost(p)} className={repostedPostIds.includes(p.id) ? "active" : ""}><Repeat2 size={16}/></button>
                             <button onClick={() => shareItem(p.text, p.id ? { kind: "post", postId: p.id } : null)}><Share2 size={16}/></button>
+                            {user && p.authorId && p.authorId !== "me" && p.authorId !== user.id && (
+                              <button
+                                type="button"
+                                title={t.report_action}
+                                onClick={() => openReportSheet({
+                                  targetType: "post",
+                                  targetId: String(p.id),
+                                  targetUserId: isRealProfileId(p.authorId) ? p.authorId : null,
+                                  label: p.author || t.report_title,
+                                })}
+                              ><Flag size={15} /></button>
+                            )}
                           </div>
                           <div className="comments-box">
                             {comments.filter((c) => !c.parent_id).map((c) => (
@@ -4340,6 +4483,22 @@ export default function App() {
                   >{storyAuthorLabel}</div>
                   <div className="stime">{t.story_expires} {hoursLeft}{t.story_hours}</div>
                 </div>
+                {s.authorId && s.authorId !== "me" && user && (
+                  <button
+                    type="button"
+                    className="report-inline-btn"
+                    style={{ marginLeft: "auto", marginRight: 8 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openReportSheet({
+                        targetType: "story",
+                        targetId: String(s.id),
+                        targetUserId: isRealProfileId(s.authorId) ? s.authorId : null,
+                        label: storyAuthorLabel,
+                      });
+                    }}
+                  ><Flag size={13} /> {t.report_action}</button>
+                )}
                 <div className="story-close" onClick={closeStory}><X size={22} strokeWidth={2} /></div>
               </div>
               <div className="story-body">
@@ -4478,9 +4637,23 @@ export default function App() {
                     <div className="profile-stat"><div className="n">{viewedProfileStats.following}</div><div className="l">{t.following_count}</div></div>
                     <div className="profile-stat"><div className="n">{viewedProfileStats.posts}</div><div className="l">{t.posts_count}</div></div>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
                     <RelationActions profileId={viewedProfile.id} />
                   </div>
+                  {user && viewedProfile.id !== user.id && (
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                      <button
+                        type="button"
+                        className="report-inline-btn"
+                        onClick={() => openReportSheet({
+                          targetType: "user",
+                          targetId: viewedProfile.id,
+                          targetUserId: viewedProfile.id,
+                          label: viewedProfile.display_name || t.report_title,
+                        })}
+                      ><Flag size={13} /> {t.report_action}</button>
+                    </div>
+                  )}
                   <div className="section-label">{t.profile_public_posts}</div>
                   {viewedProfilePosts.length === 0 && <div className="note">{t.feed_subs_empty}</div>}
                   {viewedProfilePosts.map((p) => (
@@ -4528,6 +4701,66 @@ export default function App() {
               })()}
             </div>
           </>
+        )}
+
+        {/* Account deletion confirm sheet */}
+        {deleteAccountOpen && (
+          <div className="sheet-backdrop" role="dialog" aria-modal="true" onClick={() => !deleteAccountBusy && setDeleteAccountOpen(false)}>
+            <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-title">{t.account_delete_title}</div>
+              <div className="sheet-sub">{t.account_delete_warn}</div>
+              <div className="note" style={{ marginBottom: 8 }}>{t.account_delete_confirm_label}</div>
+              <input
+                type="text"
+                autoComplete="off"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                disabled={deleteAccountBusy}
+              />
+              {deleteAccountMessage ? <div className="note" style={{ marginBottom: 10 }}>{deleteAccountMessage}</div> : null}
+              <div className="sheet-actions">
+                <div className="sheet-btn ghost" onClick={() => !deleteAccountBusy && setDeleteAccountOpen(false)}>{t.account_delete_cancel}</div>
+                <div
+                  className="sheet-btn danger"
+                  style={{ opacity: deleteAccountBusy || !isDeleteConfirmValid(deleteConfirmText) ? 0.5 : 1 }}
+                  onClick={confirmDeleteAccount}
+                >{deleteAccountBusy ? t.account_delete_busy : t.account_delete_confirm_btn}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Report / moderation sheet — queue only, no auto-ban */}
+        {reportTarget && (
+          <div className="sheet-backdrop" role="dialog" aria-modal="true" onClick={() => !reportBusy && closeReportSheet()}>
+            <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-title">{t.report_title}{reportTarget.label ? ` — ${reportTarget.label}` : ""}</div>
+              <div className="sheet-sub">{t.report_sub}</div>
+              <div className="note" style={{ marginBottom: 6 }}>{t.report_reason_label}</div>
+              <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} disabled={reportBusy}>
+                {REPORT_REASONS.map((r) => (
+                  <option key={r} value={r}>{t[`report_reason_${r}`] || r}</option>
+                ))}
+              </select>
+              <div className="note" style={{ marginBottom: 6 }}>{t.report_details_label}</div>
+              <textarea
+                rows={3}
+                maxLength={500}
+                placeholder={t.report_details_placeholder}
+                value={reportDetails}
+                onChange={(e) => setReportDetails(e.target.value)}
+                disabled={reportBusy}
+              />
+              {reportMessage ? <div className="note" style={{ marginBottom: 10 }}>{reportMessage}</div> : null}
+              <div className="sheet-actions">
+                <div className="sheet-btn ghost" onClick={() => !reportBusy && closeReportSheet()}>{t.report_cancel}</div>
+                <div className="sheet-btn primary" style={{ opacity: reportBusy ? 0.6 : 1 }} onClick={submitReportSheet}>
+                  {reportBusy ? t.report_busy : t.report_submit}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
       </div>
