@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node scripts/onboarding-gate.test.mjs && node scripts/social-rules.test.mjs && node scripts/engagement.test.mjs && node scripts/story-create.test.mjs && node scripts/push-contacts.test.mjs"
+    "test": "node scripts/onboarding-gate.test.mjs && node scripts/social-rules.test.mjs && node scripts/engagement.test.mjs && node scripts/story-create.test.mjs && node scripts/push-contacts.test.mjs && node scripts/p1-compliance.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
