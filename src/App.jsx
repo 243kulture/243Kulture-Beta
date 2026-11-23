@@ -2343,6 +2343,10 @@ export default function App() {
   }, [screen, user?.id]);
 
   useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get("uiPreview");
+      if (p === "profile" || p === "community") return; // keep preview tab=…
+    } catch { /* ignore */ }
     if (screen === "profil" || screen === "userProfile") setProfileTab("publications");
   }, [screen, viewedProfile?.id]);
 
