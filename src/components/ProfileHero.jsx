@@ -1,18 +1,18 @@
 import React from "react";
 import { MessageCircle, Pencil, Star } from "lucide-react";
 
-/** Deterministic charcoal + gold cover (V2 palette — no photo upload). */
-export function profileCoverStyle(seed = "") {
+/** Deterministic cover variant index (theme gradients live in --cx-cover-* CSS). */
+export function profileCoverVariant(seed = "") {
   const s = String(seed || "243");
   let h = 0;
   for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  const variants = [
-    "radial-gradient(ellipse 90% 70% at 18% 0%, rgba(233,185,67,.28) 0%, transparent 55%), linear-gradient(145deg, #171A20 0%, #0B0D10 55%, #12151c 100%)",
-    "radial-gradient(ellipse 80% 65% at 85% 8%, rgba(233,185,67,.22) 0%, transparent 50%), linear-gradient(160deg, #0B0D10 0%, #1a1e28 48%, #0B0D10 100%)",
-    "radial-gradient(ellipse 70% 60% at 50% 0%, rgba(245,245,245,.08) 0%, transparent 50%), linear-gradient(135deg, #12151c 0%, #0B0D10 40%, #171A20 100%)",
-    "radial-gradient(ellipse 85% 75% at 30% 15%, rgba(233,185,67,.18) 0%, transparent 52%), linear-gradient(150deg, #0B0D10 0%, #171A20 60%, #0B0D10 100%)",
-  ];
-  return { background: variants[h % variants.length] };
+  return h % 4;
+}
+
+/** Theme-aware cover: resolves --cx-cover-N from .profile-experience (dark + Jour Kin light). */
+export function profileCoverStyle(seed = "") {
+  const idx = profileCoverVariant(seed);
+  return { background: `var(--cx-cover-${idx})` };
 }
 
 /**
