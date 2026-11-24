@@ -24,6 +24,11 @@ for (const hex of PALETTE) {
 
 assert.ok(app.includes(".community-experience"), "community CSS scope");
 assert.ok(app.includes(".profile-experience"), "profile CSS scope");
+assert.ok(
+  /\.nav-fab\s*\{[^}]*background:\s*#E9B943/s.test(app) &&
+    /\.nav-fab\s*\{[^}]*color:\s*#0B0D10/s.test(app),
+  "create/+ Poste FAB uses brand gold #E9B943 with deep black contrast"
+);
 assert.ok(app.includes("cx-compose"), "editorial compose zone");
 assert.ok(app.includes("cx-post"), "editorial post stream");
 assert.ok(app.includes("cx-person"), "people rows without glass cards");
