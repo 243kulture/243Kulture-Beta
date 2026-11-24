@@ -2842,10 +2842,12 @@ export default function App() {
         .streak-pill { display:inline-flex; align-items:center; gap:5px; background:rgba(232,184,75,0.15); border:1px solid rgba(232,184,75,0.35);
           border-radius:20px; padding:4px 12px; font-size:11px; font-weight:700; color:var(--gold); margin-top:10px; }
         .nav-item.central { position:relative; }
-        .nav-fab { width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg,var(--blue),var(--red) 55%,var(--gold)); display:flex; align-items:center; justify-content:center;
-          color:#fff; margin:-22px auto 2px; box-shadow:0 6px 16px rgba(30,95,168,0.35); border:3px solid var(--bg); }
-        .nav-fab-label { font-size:9px; font-weight:700; color:var(--gold); letter-spacing:.2px; font-family:var(--font-title); margin-top:1px; }
-        .nav-item.central.active .nav-fab-label { color:var(--gold); }
+        /* Brand 243 gold FAB — always prominent (+ Poste), deep black contrast */
+        .nav-fab { width:46px; height:46px; border-radius:50%; background:#E9B943; display:flex; align-items:center; justify-content:center;
+          color:#0B0D10; margin:-22px auto 2px; box-shadow:0 6px 18px rgba(233,185,67,0.45), 0 0 0 1px rgba(11,13,16,0.12); border:3px solid var(--bg); }
+        .nav-item.central.active .nav-fab { background:#E9B943; color:#0B0D10; box-shadow:0 8px 22px rgba(233,185,67,0.55), 0 0 0 1px rgba(11,13,16,0.16); }
+        .nav-fab-label { font-size:9px; font-weight:700; color:#E9B943; letter-spacing:.2px; font-family:var(--font-title); margin-top:1px; }
+        .nav-item.central.active .nav-fab-label { color:#E9B943; }
         .create-hero { margin-bottom:14px; padding:16px; border-radius:16px; background:linear-gradient(135deg,rgba(30,95,168,.2),rgba(200,68,60,.08) 60%,rgba(232,184,75,.12)); border:1px solid rgba(232,184,75,.25); }
         .create-hero-title { font-size:17px; font-weight:800; color:var(--heading); margin-bottom:6px; font-family:var(--font-title); }
         .create-hero-sub { font-size:11.5px; color:var(--muted); line-height:1.45; }
@@ -3288,7 +3290,7 @@ export default function App() {
           .nav-item { flex-direction: row; align-items: center; gap: 8px; font-size: 12.5px; }
           .nav-icon { margin-bottom: 0; }
           .nav-item.central { order: 5; margin-left: auto; }
-          .nav-fab { margin: 0; width: 38px; height: 38px; box-shadow: none; border: none; }
+          .nav-fab { margin: 0; width: 42px; height: 42px; border: 2px solid #0B0D10; box-shadow: 0 4px 14px rgba(233,185,67,0.4); }
           .header { padding: 20px 32px 14px; }
           .content { max-width: 680px; margin: 0 auto; width: 100%; padding: 0 32px 40px; }
           .status { display: none; }
