@@ -394,5 +394,15 @@
   "report_reason_privacy": "Atteinte à la vie privée",
   "report_reason_ip": "Propriété intellectuelle",
   "report_reason_spam": "Spam",
-  "report_reason_other": "Autre"
+  "report_reason_other": "Autre",
+  "profile_tab_publications": "Publications",
+  "profile_tab_stories": "Stories",
+  "profile_tab_about": "Compte",
+  "profile_edit": "Modifier",
+  "profile_message": "Message",
+  "profile_grid_empty": "Aucune publication pour l’instant.",
+  "profile_stories_empty": "Pas de Story active (24 h).",
+  "profile_cover_hint": "Couverture générée — photo personnalisée bientôt.",
+  "profile_open_story": "Voir la Story",
+  "profile_become_creator": "Créateur"
 }

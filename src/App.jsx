@@ -53,9 +53,10 @@ import {
 } from "./lib/moderation.js";
 import { isGoogleProviderDisabledError } from "./lib/googleOAuth.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
+import ProfileHero, { ProfileCtaButton } from "./components/ProfileHero.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
-  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2, Flag } from "lucide-react";
+  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2, Flag, Pencil } from "lucide-react";
 
 /*
  * ==========================================================================
@@ -787,6 +788,8 @@ export default function App() {
   const [viewedProfileLoading, setViewedProfileLoading] = useState(false);
   const [viewedProfileStats, setViewedProfileStats] = useState({ followers: 0, following: 0, posts: 0 });
   const [viewedProfilePosts, setViewedProfilePosts] = useState([]);
+  const [profileTab, setProfileTab] = useState("publications"); // publications | stories | about
+  const [selfProfileStats, setSelfProfileStats] = useState({ followers: 0, following: 0, posts: 0 });
   const [socialGraphLoading, setSocialGraphLoading] = useState(false);
   const searchTimerRef = useRef(null);
   const searchGenRef = useRef(0);
@@ -1072,9 +1075,15 @@ export default function App() {
         setUser({ provider: session.user.app_metadata?.provider || "Google", id: session.user.id, email: session.user.email });
       }
     });
+    const isUiPreview = () => {
+      try {
+        const p = new URLSearchParams(window.location.search).get("uiPreview");
+        return p === "profile" || p === "community";
+      } catch { return false; }
+    };
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) setUser({ provider: session.user.app_metadata?.provider || "Google", id: session.user.id, email: session.user.email });
-      else setUser(null);
+      else if (!isUiPreview()) setUser(null);
     });
     return () => listener.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1085,6 +1094,10 @@ export default function App() {
   // remplacer les états locaux (favoris, suivis, amis, XP, badges...).
   // ---------- Route guard: language → terms → auth → app ----------
   useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get("uiPreview");
+      if (p === "profile" || p === "community") return;
+    } catch { /* ignore */ }
     const redirect = redirectForGate(gate, screen);
     if (redirect && redirect !== screen) setScreen(redirect);
   }, [gate, screen]);
@@ -1811,6 +1824,18 @@ export default function App() {
     await loadSocialGraph();
   };
 
+  /** Open or create a DM thread — friends not required (messages table is peer-to-peer). */
+  const openDirectMessage = (profileId, profileHint = null) => {
+    if (!profileId || profileId === user?.id) return;
+    if (profileHint) {
+      setCommunityProfiles((prev) => mergeProfileMap(prev, [profileHint]));
+    }
+    setActiveConv(profileId);
+    setCommunityTab("messages");
+    if (redirectForGate(gate, "conversation")) setScreen("conversation");
+    else go("conversation");
+  };
+
   const openPublicProfile = async (profileId) => {
     if (!profileId) return;
     if (profileId === user?.id) { go("profil"); return; }
@@ -1830,7 +1855,7 @@ export default function App() {
     setViewedProfileStats({ followers: 0, following: 0, posts: 0 });
     go("userProfile");
     const [profileRes, statsRes, postsRes] = await Promise.all([
-      supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, creator_name, creator_type, creator_languages, onboarding_country, creator_bio").eq("id", profileId).maybeSingle(),
+      supabase.from("profiles").select("id, display_name, avatar_icon, creator_status, creator_name, creator_handle, creator_type, creator_languages, onboarding_country, creator_bio").eq("id", profileId).maybeSingle(),
       supabase.rpc("get_public_profile_stats", { p_profile_id: profileId }),
       supabase.from("posts").select("id, user_id, text, media_url, media_type, created_at").eq("user_id", profileId).order("created_at", { ascending: false }).limit(20),
     ]);
@@ -1871,7 +1896,7 @@ export default function App() {
     if (isRealProfileId(authorId) || communityProfiles[authorId]) openPublicProfile(authorId);
   };
 
-  const RelationActions = ({ profileId, compact }) => {
+  const RelationActions = ({ profileId, compact, hideFollow }) => {
     const rel = relationWith(profileId);
     const incoming = incomingInvites.find((i) => i.sender_id === profileId);
     const outgoing = outgoingInvites.find((i) => i.recipient_id === profileId);
@@ -1881,9 +1906,11 @@ export default function App() {
     if (!isSupabaseConfigured) {
       return (
         <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
-          <div className={`friend-btn${following ? " added" : " add"}`} onClick={() => toggleUserFollow(profileId)}>
-            {following ? t.following_action : t.follow_action}
-          </div>
+          {!hideFollow && (
+            <div className={`friend-btn${following ? " added" : " add"}`} onClick={() => toggleUserFollow(profileId)}>
+              {following ? t.following_action : t.follow_action}
+            </div>
+          )}
           <div className={`friend-btn${friends.includes(profileId) ? " added" : " add"}`} onClick={() => toggleFriend(profileId)}>
             {friends.includes(profileId) ? t.added_friend : t.add_friend}
           </div>
@@ -1892,12 +1919,14 @@ export default function App() {
     }
     return (
       <div className="friend-actions" onClick={(e) => e.stopPropagation()}>
+        {!hideFollow && (
         <div
           className={`friend-btn${following ? " added" : " add"}${busy === `follow:${profileId}` ? " pending" : ""}`}
           onClick={() => !busy && toggleUserFollow(profileId)}
         >
           {busy === `follow:${profileId}` ? t.friend_action_loading : (following ? t.unfollow_action : t.follow_action)}
         </div>
+        )}
         {rel === "friends" && (
           <>
             {!compact && <div className="friend-btn added">{t.relation_friends}</div>}
@@ -2125,7 +2154,8 @@ export default function App() {
   const openStory = (id) => {
     setActiveStoryId(id);
     setSeenStories((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    go("storyView");
+    if (redirectForGate(gate, "storyView")) setScreen("storyView");
+    else go("storyView");
   };
   const closeStory = () => { setActiveStoryId(null); go("home"); };
   const storyOrder = () => [
@@ -2295,6 +2325,119 @@ export default function App() {
     const w = el.clientWidth;
     el.scrollTo({ left: heroIndex * (w * 0.88 + 10), behavior: "smooth" });
   }, [heroIndex, screen]);
+
+  useEffect(() => {
+    if (screen !== "profil" || !user?.id || !isSupabaseConfigured) return;
+    if (String(user.id).startsWith("demo-")) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc("get_public_profile_stats", { p_profile_id: user.id });
+      if (cancelled || error || !data) return;
+      setSelfProfileStats({
+        followers: data.followers ?? 0,
+        following: data.following ?? 0,
+        posts: data.posts ?? 0,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [screen, user?.id]);
+
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get("uiPreview");
+      if (p === "profile" || p === "community") return; // keep preview tab=…
+    } catch { /* ignore */ }
+    if (screen === "profil" || screen === "userProfile") setProfileTab("publications");
+  }, [screen, viewedProfile?.id]);
+
+  // QA-only visual preview (?uiPreview=profile|community) — no auth required.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const preview = params.get("uiPreview");
+    if (preview !== "profile" && preview !== "community") return;
+    const asOther = params.get("as") === "other";
+    const tab = params.get("tab");
+    const previewId = "demo-preview-self";
+    const otherId = "demo-preview-other";
+    persistLangLocal("fr");
+    setLang("fr");
+    setCguChecked(true);
+    setHasCurrentCgu(true);
+    setGateReady(true);
+    setUser({ provider: "Preview", id: previewId, email: "preview@243kulture.local" });
+    setMyDisplayName("Grace M.");
+    setNameDraft("Grace M.");
+    setCreatorStatus("verified_creator");
+    setCreatorForm((prev) => ({
+      ...prev,
+      creator_handle: "gracem",
+      creator_bio: "Chanteuse · Kinshasa → Bruxelles. Afro-fusion & scènes live.",
+      creator_type: "Artiste",
+      creator_name: "Grace M.",
+    }));
+    setOnboardingCountry("RDC");
+    setSelfProfileStats({ posts: 8, followers: 342, following: 28 });
+    setFollowingUsers([otherId]);
+    setFollowerUsers(["demo-follower-1"]);
+    setFriends([otherId]);
+    setCommunityProfiles({
+      [otherId]: { id: otherId, display_name: "Josué T.", avatar_icon: "🕺", creator_status: "creator" },
+      "demo-follower-1": { id: "demo-follower-1", display_name: "Nadia B.", avatar_icon: "📚" },
+    });
+    setDiscoverPeople([
+      { id: "demo-disc-1", display_name: "Aline W.", avatar_icon: "🎤", creator_status: "member" },
+      { id: otherId, display_name: "Josué T.", avatar_icon: "🕺", creator_status: "creator" },
+    ]);
+    setRealFriendProfiles([{ id: otherId, display_name: "Josué T.", avatar_icon: "🕺" }]);
+    setPosts((prev) => {
+      const mine = [
+        { id: "prev1", authorId: previewId, author: "Toi", icon: "🎤", time: "1h", text: "Répétition pour le showcase 243Kulture ✨", media_url: null },
+        { id: "prev2", authorId: previewId, author: "Toi", icon: "🎤", time: "Hier", text: "Nouveau single en route — rumba contemporaine.", media_url: null },
+        { id: "prev3", authorId: otherId, author: "Josué T.", icon: "🕺", time: "3h", text: "Workshop sape ce soir à Matonge.", media_url: null },
+        { id: "prev4", authorId: previewId, author: "Toi", icon: "🎤", time: "3j", text: "Backstage à Kin", media_url: null },
+      ];
+      const ids = new Set(mine.map((p) => p.id));
+      return [...mine, ...prev.filter((p) => !ids.has(p.id))];
+    });
+    setStories((prev) => {
+      const now = Date.now();
+      const selfStory = { id: "prev_story_self", authorId: "me", type: "text", text: "Live rehearsal ✨", color: "linear-gradient(135deg,#171A20,#E9B943)", createdAt: now - 3600 * 1000, authorIcon: "🎤" };
+      const otherStory = { id: "prev_story_other", authorId: otherId, type: "text", text: "Workshop tonight", color: "linear-gradient(135deg,#0B0D10,#E9B943)", authorIcon: "🕺", authorName: "Josué T.", createdAt: now - 2 * 3600 * 1000 };
+      const without = prev.filter((st) => st.id !== selfStory.id && st.id !== otherStory.id);
+      return [...without, selfStory, otherStory];
+    });
+    if (preview === "community") {
+      setCommunityTab(tab === "amis" ? "amis" : tab === "abonnements" ? "abonnements" : tab === "abonnes" ? "abonnes" : tab === "messages" ? "messages" : "feed");
+      setFeedMode("abonnements");
+      setScreen("amis");
+      return;
+    }
+    if (asOther) {
+      setViewedProfile({
+        id: otherId,
+        display_name: "Josué T.",
+        avatar_icon: "🕺",
+        creator_status: "creator",
+        creator_name: "Josué T.",
+        creator_handle: "josuet",
+        creator_type: "Danseur",
+        creator_bio: "Chorégaphe & professeur. Kinshasa / Bruxelles.",
+        onboarding_country: "Belgique",
+      });
+      setViewedProfileStats({ posts: 5, followers: 128, following: 40 });
+      setViewedProfilePosts([
+        { id: "op1", text: "Nouveau workshop ce week-end", time: "2h", media_url: null },
+        { id: "op2", text: "Répétition ouverte Matonge", time: "1j", media_url: null },
+      ]);
+      if (tab === "stories" || tab === "about") setProfileTab(tab === "about" ? "publications" : tab);
+      else if (tab) setProfileTab(tab);
+      setScreen("userProfile");
+    } else {
+      if (tab === "about" || tab === "stories" || tab === "publications") setProfileTab(tab);
+      setScreen("profil");
+    }
+  }, []);
 
   const ytFiltered = podFilter === "all" ? YT_EPISODES : YT_EPISODES.filter((e) => e.cat === podFilter);
   const searchResults = query.trim() ? CATALOG.filter((c) => c.title.toLowerCase().includes(query.trim().toLowerCase())) : [];
@@ -2847,6 +2990,283 @@ export default function App() {
         .appearance-row { display:flex; gap:6px; margin-bottom:8px; }
         .appearance-btn { flex:1; text-align:center; padding:9px 6px; border-radius:10px; background:var(--glass); border:1px solid var(--glass-border); font-size:11px; cursor:pointer; color:var(--text); font-weight:600; font-family:var(--font-title); }
         .appearance-btn.selected { background:var(--gold); color:#1a1200; border-color:var(--gold); font-weight:700; }
+
+
+        /* ==========================================================
+           COMMUNITY + PROFILE V2 — Premium Editorial (scoped)
+           Palette isolated under .community-experience / .profile-experience
+           ========================================================== */
+        .community-experience, .profile-experience {
+          --cx-bg: #0B0D10;
+          --cx-surface: #171A20;
+          --cx-gold: #E9B943;
+          --cx-text: #F5F5F5;
+          --cx-muted: #A1A6B0;
+          --cx-line: rgba(245,245,245,0.08);
+          color: var(--cx-text);
+        }
+        .community-experience .cx-header, .profile-experience .cx-header {
+          display: flex; align-items: flex-start; gap: 10px; padding: 4px 0 14px;
+          border-bottom: 1px solid var(--cx-line); margin-bottom: 14px;
+        }
+        .community-experience .cx-title, .profile-experience .cx-title {
+          font-family: var(--font-title); font-size: 22px; font-weight: 750; letter-spacing: -0.02em;
+          color: var(--cx-text); margin: 0; line-height: 1.15;
+        }
+        .community-experience .cx-sub, .profile-experience .cx-sub {
+          margin-top: 4px; font-size: 12px; color: var(--cx-muted); line-height: 1.4;
+        }
+        .community-experience .cx-tabs {
+          display: flex; gap: 0; overflow-x: auto; scrollbar-width: none;
+          border-bottom: 1px solid var(--cx-line); margin: 0 -16px 16px; padding: 0 16px;
+        }
+        .community-experience .cx-tabs::-webkit-scrollbar { display: none; }
+        .community-experience .cx-tab {
+          flex: 0 0 auto; border: none; background: transparent; color: var(--cx-muted);
+          font-family: var(--font-title); font-size: 12.5px; font-weight: 650;
+          padding: 12px 14px; cursor: pointer; border-bottom: 2px solid transparent;
+          transition: color .2s ease, border-color .2s ease;
+        }
+        .community-experience .cx-tab.active { color: var(--cx-gold); border-bottom-color: var(--cx-gold); }
+        .community-experience .cx-feed-modes {
+          display: flex; gap: 18px; margin-bottom: 8px; align-items: baseline;
+        }
+        .community-experience .cx-feed-mode {
+          border: none; background: none; padding: 0; cursor: pointer;
+          font-family: var(--font-title); font-size: 13px; font-weight: 650; color: var(--cx-muted);
+        }
+        .community-experience .cx-feed-mode.active { color: var(--cx-text); }
+        .community-experience .cx-feed-mode.active::after {
+          content: ""; display: block; height: 2px; margin-top: 6px; background: var(--cx-gold);
+          transform-origin: left; animation: cxUnderline .28s ease;
+        }
+        @keyframes cxUnderline { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+        .community-experience .cx-hint { font-size: 11.5px; color: var(--cx-muted); margin: 0 0 14px; line-height: 1.4; }
+
+        /* Stories strip inside community (Home unchanged) */
+        .community-experience .cx-stories { margin: 0 0 18px; }
+        .community-experience .cx-stories-label {
+          font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+          color: var(--cx-muted); margin-bottom: 10px;
+        }
+        .community-experience .story-ticket {
+          border-radius: 4px 4px 14px 14px; border: 1px solid var(--cx-line);
+          box-shadow: none; background: linear-gradient(160deg, #171A20, #0B0D10);
+        }
+        .community-experience .story-ticket.unseen { border-color: rgba(233,185,67,.55); box-shadow: 0 0 0 1px rgba(233,185,67,.15); }
+        .community-experience .story-ticket-add { border-radius: 50%; background: var(--cx-gold); }
+
+        /* Compose zone — editorial, not a glass card */
+        .community-experience .cx-compose {
+          display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: stretch;
+          padding: 12px 0 16px; margin-bottom: 8px; border-bottom: 1px solid var(--cx-line);
+        }
+        .community-experience .cx-compose input {
+          background: transparent; border: none; border-bottom: 1px solid var(--cx-line);
+          border-radius: 0; padding: 10px 2px; color: var(--cx-text); font-size: 14px; outline: none;
+          font-family: var(--font-body); transition: border-color .2s ease;
+        }
+        .community-experience .cx-compose input:focus { border-bottom-color: var(--cx-gold); }
+        .community-experience .cx-compose input::placeholder { color: var(--cx-muted); }
+        .community-experience .cx-compose .post-media-btn,
+        .community-experience .cx-compose .post-send {
+          border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+          min-width: 44px; padding: 0 14px; cursor: pointer; font-weight: 700; font-size: 12px;
+        }
+        .community-experience .cx-compose .post-media-btn {
+          background: transparent; border: 1px solid var(--cx-line); color: var(--cx-muted);
+        }
+        .community-experience .cx-compose .post-send {
+          background: var(--cx-gold); color: #0B0D10; border: none;
+        }
+        .community-experience .post-media-preview {
+          margin: 0 0 14px; border-radius: 4px; overflow: hidden; border: 1px solid var(--cx-line);
+          position: relative; background: var(--cx-surface);
+        }
+        .community-experience .post-media-preview img,
+        .community-experience .post-media-preview video { width: 100%; display: block; max-height: 220px; object-fit: cover; }
+        .community-experience .post-media-preview button {
+          position: absolute; top: 8px; right: 8px; border: none; background: rgba(11,13,16,.75);
+          color: #fff; border-radius: 50%; width: 28px; height: 28px; cursor: pointer;
+        }
+
+        /* Editorial posts — no glass cards */
+        .community-experience .cx-post {
+          background: transparent; border: none; border-radius: 0; padding: 16px 0;
+          margin: 0; border-bottom: 1px solid var(--cx-line);
+        }
+        .community-experience .cx-post.deep-link-target { box-shadow: inset 0 0 0 1px rgba(233,185,67,.35); padding-left: 8px; padding-right: 8px; }
+        .community-experience .cx-post .post-head { margin-bottom: 10px; }
+        .community-experience .cx-post .post-avatar {
+          width: 36px; height: 36px; border-radius: 50%;
+          background: linear-gradient(145deg, #171A20, #0B0D10); border: 1px solid var(--cx-line);
+        }
+        .community-experience .cx-post .post-name { color: var(--cx-text); font-family: var(--font-title); font-size: 13px; }
+        .community-experience .cx-post .post-name.clickable { color: var(--cx-gold); }
+        .community-experience .cx-post .post-time { color: var(--cx-muted); }
+        .community-experience .cx-post .post-text { font-size: 14px; line-height: 1.55; color: var(--cx-text); }
+        .community-experience .cx-post .post-media {
+          width: 100%; margin-top: 12px; border-radius: 4px; display: block; max-height: 360px; object-fit: cover;
+          border: 1px solid var(--cx-line);
+        }
+        .community-experience .cx-post .post-actions-row {
+          display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px;
+        }
+        .community-experience .cx-post .post-actions-row button {
+          border: none; background: transparent; color: var(--cx-muted); font-size: 12px;
+          padding: 6px 8px; cursor: pointer; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;
+        }
+        .community-experience .cx-post .post-actions-row button.active,
+        .community-experience .cx-post .post-actions-row button:hover { color: var(--cx-gold); }
+        .community-experience .cx-post .comments-box { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--cx-line); }
+        .community-experience .cx-post .comment-item { font-size: 12.5px; color: var(--cx-text); margin-bottom: 6px; }
+        .community-experience .cx-post .comment-compose {
+          display: flex; gap: 8px; margin-top: 8px;
+        }
+        .community-experience .cx-post .comment-compose input {
+          flex: 1; background: transparent; border: none; border-bottom: 1px solid var(--cx-line);
+          color: var(--cx-text); padding: 8px 2px; outline: none; font-size: 12.5px;
+        }
+        .community-experience .cx-post .comment-compose button {
+          border: none; background: transparent; color: var(--cx-gold); cursor: pointer;
+        }
+        .community-experience .post-repost-label { color: var(--cx-muted); font-size: 11px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+
+        /* People rows — no cards */
+        .community-experience .cx-person {
+          display: flex; align-items: center; gap: 12px; padding: 12px 0;
+          border-bottom: 1px solid var(--cx-line); background: transparent; flex-wrap: wrap;
+        }
+        .community-experience .cx-person.clickable { cursor: pointer; }
+        .community-experience .cx-person .friend-avatar {
+          width: 44px; height: 44px; border-radius: 50%;
+          background: linear-gradient(145deg, #171A20, #0B0D10); border: 1px solid var(--cx-line);
+          display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+        }
+        .community-experience .cx-person .friend-name { color: var(--cx-text); font-family: var(--font-title); font-size: 13.5px; font-weight: 700; }
+        .community-experience .cx-person .friend-bio { color: var(--cx-muted); font-size: 11.5px; }
+        .community-experience .cx-person .friend-actions { margin-left: auto; }
+        .community-experience .cx-person .friend-btn.add { background: var(--cx-gold); color: #0B0D10; border-radius: 999px; }
+        .community-experience .cx-person .friend-btn.added,
+        .community-experience .cx-person .friend-btn.pending {
+          background: transparent; border: 1px solid var(--cx-line); color: var(--cx-muted); border-radius: 999px;
+        }
+        .community-experience .cx-section {
+          font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+          color: var(--cx-muted); margin: 18px 0 8px;
+        }
+        .community-experience .cx-empty {
+          text-align: center; padding: 36px 16px; color: var(--cx-muted);
+        }
+        .community-experience .cx-empty .ic { font-size: 28px; display: block; margin-bottom: 10px; opacity: .7; }
+        .community-experience .cx-empty .txt-title { font-family: var(--font-title); color: var(--cx-text); font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+        .community-experience .feed-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+        .community-experience .feed-empty-cta {
+          border: 1px solid var(--cx-line); background: transparent; color: var(--cx-text);
+          border-radius: 999px; padding: 10px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+        }
+        .community-experience .feed-empty-cta.primary { background: var(--cx-gold); color: #0B0D10; border-color: transparent; }
+        .community-experience .search-bar {
+          background: transparent; border: none; border-bottom: 1px solid var(--cx-line); border-radius: 0;
+          color: var(--cx-text);
+        }
+        .community-experience .conv-list-item {
+          background: transparent; border: none; border-bottom: 1px solid var(--cx-line); border-radius: 0; padding: 12px 0;
+        }
+
+        /* Profile experience */
+        .profile-experience .profile-hero { margin: -14px -16px 12px; }
+        .profile-experience .profile-cover { height: 128px; width: 100%; position: relative; }
+        .profile-experience .profile-hero-body { padding: 0 16px 4px; margin-top: -42px; position: relative; z-index: 1; }
+        .profile-experience .profile-avatar-wrap { display: flex; justify-content: center; }
+        .profile-experience .profile-avatar-btn { border: none; background: transparent; padding: 0; margin: 0; border-radius: 50%; cursor: default; }
+        .profile-experience .profile-avatar-btn.is-clickable { cursor: pointer; }
+        .profile-experience .profile-avatar-btn.has-story {
+          padding: 3px; background: linear-gradient(135deg, #E9B943, #F5F5F5 55%, #E9B943);
+          animation: cxRingPulse 2.4s ease-in-out infinite;
+        }
+        .profile-experience .profile-avatar-btn.has-story.story-unseen {
+          background: linear-gradient(135deg, #E9B943, #f5d98a 40%, #E9B943);
+        }
+        @keyframes cxRingPulse {
+          0%, 100% { filter: drop-shadow(0 0 0 rgba(233,185,67,0)); }
+          50% { filter: drop-shadow(0 0 8px rgba(233,185,67,.35)); }
+        }
+        .profile-experience .profile-avatar-btn:not(.has-story) .profile-avatar-lg { border: 2px solid rgba(233,185,67,.55); }
+        .profile-experience .profile-avatar-btn.has-story .profile-avatar-lg { border: 3px solid #0B0D10; }
+        .profile-experience .profile-avatar-lg {
+          width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+          font-size: 34px; background: linear-gradient(145deg, #171A20, #0B0D10); color: #F5F5F5;
+        }
+        .profile-experience .profile-identity { text-align: center; margin-top: 10px; }
+        .profile-experience .profile-name-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .profile-experience .profile-name-lg {
+          margin: 0; font-family: var(--font-title); font-size: 21px; font-weight: 750; color: var(--cx-text); letter-spacing: -0.02em;
+        }
+        .profile-experience .profile-verified { color: var(--cx-gold); display: inline-flex; }
+        .profile-experience .profile-meta {
+          margin-top: 4px; font-size: 12px; color: var(--cx-muted); display: flex; flex-wrap: wrap; gap: 4px;
+          justify-content: center; align-items: center;
+        }
+        .profile-experience .profile-handle { color: var(--cx-gold); font-weight: 600; }
+        .profile-experience .profile-meta-dot { opacity: .5; }
+        .profile-experience .profile-bio {
+          margin: 10px auto 0; max-width: 320px; font-size: 13px; line-height: 1.5; color: rgba(245,245,245,.82);
+        }
+        .profile-experience .profile-stats-row--hero {
+          display: flex; gap: 0; justify-content: center; margin: 16px 0 14px; border-top: 1px solid var(--cx-line);
+          border-bottom: 1px solid var(--cx-line); padding: 12px 0;
+        }
+        .profile-experience .profile-stats-row--hero .profile-stat {
+          flex: 1; max-width: none; text-align: center; background: transparent; border: none; border-radius: 0; padding: 0 6px;
+        }
+        .profile-experience .profile-stats-row--hero .profile-stat .n { font-size: 17px; font-weight: 800; color: var(--cx-gold); font-family: var(--font-title); }
+        .profile-experience .profile-stats-row--hero .profile-stat .l { font-size: 10px; color: var(--cx-muted); margin-top: 2px; letter-spacing: .04em; text-transform: uppercase; }
+        .profile-experience .profile-cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
+        .profile-experience .profile-cta {
+          min-width: 118px; border-radius: 999px; padding: 10px 16px; font-family: var(--font-title);
+          font-size: 13px; font-weight: 700; cursor: pointer; border: 1.5px solid transparent;
+          display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .profile-experience .profile-cta:disabled { opacity: .45; cursor: default; }
+        .profile-experience .profile-cta--primary { background: var(--cx-gold); color: #0B0D10; }
+        .profile-experience .profile-cta--primary.is-following {
+          background: transparent; color: var(--cx-gold); border-color: rgba(233,185,67,.55);
+        }
+        .profile-experience .profile-cta--secondary { background: transparent; color: var(--cx-text); border-color: var(--cx-line); }
+        .profile-experience .profile-cta--ghost { background: transparent; color: var(--cx-muted); border-color: var(--cx-line); font-weight: 600; }
+        .profile-experience .profile-tabs {
+          display: flex; gap: 4px; border-bottom: 1px solid var(--cx-line); margin: 4px 0 12px;
+        }
+        .profile-experience .profile-tab {
+          flex: 1; border: none; background: transparent; color: var(--cx-muted); font-family: var(--font-title);
+          font-size: 12.5px; font-weight: 650; padding: 10px 6px; cursor: pointer; border-bottom: 2px solid transparent;
+        }
+        .profile-experience .profile-tab.active { color: var(--cx-gold); border-bottom-color: var(--cx-gold); }
+        .profile-experience .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 0 -2px 16px; }
+        .profile-experience .profile-grid-item { aspect-ratio: 1; overflow: hidden; background: var(--cx-surface); position: relative; }
+        .profile-experience .profile-grid-item img,
+        .profile-experience .profile-grid-item video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .profile-experience .profile-grid-item .txt-tile {
+          position: absolute; inset: 0; padding: 8px; font-size: 10px; line-height: 1.3; color: var(--cx-text);
+          display: flex; align-items: flex-end; background: linear-gradient(180deg, transparent 30%, rgba(11,13,16,.78));
+        }
+        .profile-experience .profile-stories-row { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 16px; }
+        .profile-experience .profile-story-chip { flex: 0 0 auto; width: 72px; text-align: center; cursor: pointer; }
+        .profile-experience .profile-story-ring {
+          width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--cx-gold); padding: 2px; margin: 0 auto 4px;
+        }
+        .profile-experience .profile-story-ring-inner {
+          width: 100%; height: 100%; border-radius: 50%; background: linear-gradient(145deg, #171A20, #0B0D10);
+          display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden;
+        }
+        .profile-experience .profile-story-ring-inner img,
+        .profile-experience .profile-story-ring-inner video { width: 100%; height: 100%; object-fit: cover; }
+        .profile-experience .profile-friend-slot { display: flex; justify-content: center; margin-bottom: 10px; }
+        .profile-experience .content > .card,
+        .profile-experience .xp-card {
+          background: var(--cx-surface); border: 1px solid var(--cx-line); border-radius: 4px;
+        }
 
         /* ==========================================================
            VERSION WEB / DESKTOP — même code, même state, layout adapté.
@@ -3530,7 +3950,116 @@ export default function App() {
           <>
             <div className="status" />
             <div className="header"><div><div className="htitle">{t.profiltitle}</div><div className="hsub">{t.profiltag}</div></div></div>
-            <div className="content">
+            <div className="content profile-experience">
+              {(() => {
+                const myPosts = posts.filter((p) => p.authorId === user?.id || p.author === "Toi");
+                const selfStats = {
+                  posts: Math.max(selfProfileStats.posts || 0, myPosts.length),
+                  followers: selfProfileStats.followers || 0,
+                  following: selfProfileStats.following || followingUsers.length || 0,
+                };
+                const selfBio = creatorForm.creator_bio || null;
+                return (
+                  <ProfileHero
+                    profileId={user?.id}
+                    displayName={user ? (myDisplayName || t.profile_fan) : t.profile_guest}
+                    avatarIcon={user ? "🎶" : "👤"}
+                    bio={user ? selfBio : null}
+                    country={user ? (onboardingCountry || null) : null}
+                    handle={creatorForm.creator_handle || null}
+                    creatorStatus={user ? creatorStatus : null}
+                    creatorStatusLabel={creatorStatusLabel(creatorStatus, lang)}
+                    creatorType={creatorForm.creator_type || null}
+                    stats={selfStats}
+                    isSelf
+                    t={t}
+                    tab={profileTab}
+                    onTabChange={setProfileTab}
+                    showStoriesTab={Boolean(user)}
+                    hasActiveStory={myStories.length > 0}
+                    storyUnseen={myStories.some((st) => !seenStories.includes(st.id))}
+                    onAvatarClick={myStories.length ? () => openStory(myStories[0].id) : null}
+                    primaryActions={user ? (
+                      <ProfileCtaButton variant="secondary" onClick={() => setProfileTab("about")}>
+                        <Pencil size={14} /> {t.profile_edit}
+                      </ProfileCtaButton>
+                    ) : null}
+                    secondaryActions={user && creatorStatus !== "member" ? (
+                      <ProfileCtaButton variant="ghost" onClick={() => go("creatorStudio")}>
+                        <Star size={14} /> Studio
+                      </ProfileCtaButton>
+                    ) : user && creatorStatus === "member" ? (
+                      <ProfileCtaButton variant="ghost" onClick={() => go("creatorIntro")}>
+                        <Star size={14} /> {t.profile_become_creator || "Créateur"}
+                      </ProfileCtaButton>
+                    ) : null}
+                  />
+                );
+              })()}
+
+              {profileTab === "publications" && (
+                <>
+                  {(() => {
+                    const myPosts = posts.filter((p) => p.authorId === user?.id || p.author === "Toi");
+                    if (!user) {
+                      return (
+                        <>
+                          <div className="section-label" style={{ marginTop: 0 }}>{t.sec_connexion}</div>
+                          <div className="note" style={{ marginBottom: 12 }}>{t.auth_required_note}</div>
+                          <div className="toggle-btn selected" onClick={() => setScreen(readStoredLang() ? (cguChecked ? "onboarding" : "termsGate") : "languagePicker")}>
+                            {t.btn_login} / {t.btn_signup}
+                          </div>
+                        </>
+                      );
+                    }
+                    if (myPosts.length === 0) {
+                      return <div className="empty-state"><span className="ic">▦</span><div className="txt">{t.profile_grid_empty}</div></div>;
+                    }
+                    return (
+                      <div className="profile-grid">
+                        {myPosts.map((p) => (
+                          <div className="profile-grid-item" key={p.id}>
+                            {p.media_url ? (
+                              p.media_type === "video"
+                                ? <video src={p.media_url} muted playsInline />
+                                : <img src={p.media_url} alt="" />
+                            ) : (
+                              <div className="txt-tile">{(p.text || "").slice(0, 80)}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
+              {profileTab === "stories" && (
+                <>
+                  {myStories.length === 0 ? (
+                    <div className="empty-state"><span className="ic">◎</span><div className="txt">{t.profile_stories_empty}</div></div>
+                  ) : (
+                    <div className="profile-stories-row">
+                      {myStories.map((st) => (
+                        <div className="profile-story-chip" key={st.id} onClick={() => openStory(st.id)}>
+                          <div className="profile-story-ring">
+                            <div className="profile-story-ring-inner">
+                              {(st.type === "photo" || st.type === "image") && st.media ? <img src={st.media} alt="" />
+                                : st.type === "video" && st.media ? <video src={st.media} muted />
+                                : "🎤"}
+                            </div>
+                          </div>
+                          <div className="note" style={{ fontSize: 10 }}>{st.type}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {profileTab === "about" && (
+                <>
+
               <div className="xp-card">
                 <div className="xp-top">
                   <div className="xp-level-badge">
@@ -3553,16 +4082,11 @@ export default function App() {
                 </div>
               )}
 
-              <div className="profile-avatar">{user ? "🎶" : "👤"}</div>
-              <div className="profile-name">{user ? (myDisplayName || t.profile_fan) : t.profile_guest}</div>
               {user && isSupabaseConfigured && (
                 <div className="search-bar" style={{ marginBottom: 10 }}>
                   <input type="text" placeholder={t.profile_fan} value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} onBlur={saveDisplayName} onKeyDown={(e) => e.key === "Enter" && saveDisplayName()} />
                   {nameDraft.trim() && nameDraft.trim() !== myDisplayName && <Check size={16} strokeWidth={2.5} style={{ color: "var(--gold)", cursor: "pointer" }} onClick={saveDisplayName} />}
                 </div>
-              )}
-              {creatorStatus !== "member" && (
-                <div className="streak-pill" style={{ margin: "6px auto 10px", display: "flex", width: "fit-content" }}><Star size={13} /> {creatorStatusLabel(creatorStatus, lang)}</div>
               )}
               {user && creatorStatus === "member" && (
                 <div className="create-sheet-opt" style={{ marginTop: 14 }} onClick={() => go("creatorIntro")}>
@@ -3723,6 +4247,9 @@ export default function App() {
                 <div className="thumb">🔗</div>
                 <div><div className="card-title">{t.social_card_title}</div><div className="card-sub">{t.social_card_sub}</div></div>
               </div>
+            
+                </>
+              )}
             </div>
             <NavBar screen={screen} go={go} t={t} />
           </>
@@ -4107,18 +4634,18 @@ export default function App() {
               <span className="back" onClick={() => go("profil")} style={{ margin: 0 }}>← </span>
               <div><div className="htitle">{t.comm_title}</div><div className="hsub">{t.comm_sub}</div></div>
             </div>
-            <div className="content">
+            <div className="content community-experience">
               {!user ? (
-                <div className="empty-state"><span className="ic">🔒</span><div className="txt">{t.comm_locked}</div></div>
+                <div className="cx-empty"><span className="ic">🔒</span><div className="txt">{t.comm_locked}</div></div>
               ) : (
                 <>
-                  <div className="subtab-row community-tabs">
-                    <div className={`subtab${communityTab === "feed" ? " selected" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</div>
-                    <div className={`subtab${communityTab === "abonnements" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnements")}>{t.tab_following}</div>
-                    <div className={`subtab${communityTab === "amis" ? " selected" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</div>
-                    <div className={`subtab${communityTab === "abonnes" ? " selected" : ""}`} onClick={() => setCommunityTab("abonnes")}>{t.tab_followers}</div>
-                    <div className={`subtab${communityTab === "decouvrir" ? " selected" : ""}`} onClick={() => setCommunityTab("decouvrir")}>{t.tab_discover_people}</div>
-                    <div className={`subtab${communityTab === "messages" ? " selected" : ""}`} onClick={() => setCommunityTab("messages")}>{t.tab_messages}</div>
+                  <div className="cx-tabs" role="tablist">
+                    <button type="button" className={`cx-tab${communityTab === "feed" ? " active" : ""}`} onClick={() => setCommunityTab("feed")}>{t.tab_feed}</button>
+                    <button type="button" className={`cx-tab${communityTab === "abonnements" ? " active" : ""}`} onClick={() => setCommunityTab("abonnements")}>{t.tab_following}</button>
+                    <button type="button" className={`cx-tab${communityTab === "amis" ? " active" : ""}`} onClick={() => setCommunityTab("amis")}>{t.tab_amis}</button>
+                    <button type="button" className={`cx-tab${communityTab === "abonnes" ? " active" : ""}`} onClick={() => setCommunityTab("abonnes")}>{t.tab_followers}</button>
+                    <button type="button" className={`cx-tab${communityTab === "decouvrir" ? " active" : ""}`} onClick={() => setCommunityTab("decouvrir")}>{t.tab_discover_people}</button>
+                    <button type="button" className={`cx-tab${communityTab === "messages" ? " active" : ""}`} onClick={() => setCommunityTab("messages")}>{t.tab_messages}</button>
                   </div>
 
                   {communityTab === "amis" && (
@@ -4138,7 +4665,7 @@ export default function App() {
                                 <div className="note" style={{ marginBottom: 14 }}>{t.no_users_found}</div>
                               )}
                               {userSearchResults.map((p) => (
-                                <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                                <div className="cx-person clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
                                   <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
                                   <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.view_profile}</div></div>
                                   <RelationActions profileId={p.id} compact />
@@ -4147,44 +4674,44 @@ export default function App() {
                             </>
                           )}
 
-                          <div className="section-label">{t.invites_in}</div>
+                          <div className="cx-section">{t.invites_in}</div>
                           {incomingInvites.length === 0 && <div className="note" style={{ marginBottom: 14 }}>{t.no_invites}</div>}
                           {incomingInvites.map((inv) => (
-                            <div className="friend-card clickable" key={inv.id} onClick={() => openPublicProfile(inv.sender_id)}>
+                            <div className="cx-person clickable" key={inv.id} onClick={() => openPublicProfile(inv.sender_id)}>
                               <div className="friend-avatar">{inv.profile?.avatar_icon || "🎶"}</div>
                               <div><div className="friend-name">{inv.profile?.display_name || t.profile_fan}</div><div className="friend-bio">{t.invite_received}</div></div>
                               <RelationActions profileId={inv.sender_id} />
                             </div>
                           ))}
 
-                          <div className="section-label">{t.invites_out}</div>
+                          <div className="cx-section">{t.invites_out}</div>
                           {outgoingInvites.length === 0 && <div className="note" style={{ marginBottom: 14 }}>{t.no_invites}</div>}
                           {outgoingInvites.map((inv) => (
-                            <div className="friend-card clickable" key={inv.id} onClick={() => openPublicProfile(inv.recipient_id)}>
+                            <div className="cx-person clickable" key={inv.id} onClick={() => openPublicProfile(inv.recipient_id)}>
                               <div className="friend-avatar">{inv.profile?.avatar_icon || "🎶"}</div>
                               <div><div className="friend-name">{inv.profile?.display_name || t.profile_fan}</div><div className="friend-bio">{t.invite_sent}</div></div>
                               <RelationActions profileId={inv.recipient_id} />
                             </div>
                           ))}
 
-                          <div className="section-label">{t.tab_amis}</div>
+                          <div className="cx-section">{t.tab_amis}</div>
                           <div className="note" style={{ marginBottom: 14 }}>{t.friends_have} {friends.length} {t.friends_on_app}</div>
                           {realFriendProfiles.map((p) => (
-                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                            <div className="cx-person clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
                               <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
                               <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.relation_friends}</div></div>
                               <RelationActions profileId={p.id} compact />
                             </div>
                           ))}
                           {realFriendProfiles.length === 0 && friends.length === 0 && incomingInvites.length === 0 && outgoingInvites.length === 0 && (
-                            <div className="empty-state"><span className="ic">🔍</span><div className="txt">{t.user_search_hint}</div></div>
+                            <div className="cx-empty"><span className="ic">🔍</span><div className="txt">{t.user_search_hint}</div></div>
                           )}
                         </>
                       ) : (
                         <>
                           <div className="note" style={{ marginBottom: 14 }}>{t.friends_have} {friends.length} {t.friends_on_app}</div>
                           {COMMUNITY_MEMBERS.map((m) => (
-                            <div className="friend-card clickable" key={m.id} onClick={() => openPublicProfile(m.id)}>
+                            <div className="cx-person clickable" key={m.id} onClick={() => openPublicProfile(m.id)}>
                               <div className="friend-avatar">{m.icon}</div>
                               <div><div className="friend-name">{m.name}</div><div className="friend-bio">{m.bio}</div></div>
                               <RelationActions profileId={m.id} compact />
@@ -4197,11 +4724,11 @@ export default function App() {
 
                   {communityTab === "abonnements" && (
                     <>
-                      <div className="section-label">{t.tab_following}</div>
+                      <div className="cx-section">{t.tab_following}</div>
                       <div className="note" style={{ marginBottom: 14 }}>{followingUsers.length} · {t.following_count}</div>
-                      {followingProfiles.length === 0 && <div className="empty-state"><span className="ic">👀</span><div className="txt">{t.no_follows}</div></div>}
+                      {followingProfiles.length === 0 && <div className="cx-empty"><span className="ic">👀</span><div className="txt">{t.no_follows}</div></div>}
                       {followingProfiles.map((p) => (
-                        <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                        <div className="cx-person clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
                           <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
                           <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.following_action}</div></div>
                           <RelationActions profileId={p.id} compact />
@@ -4212,11 +4739,11 @@ export default function App() {
 
                   {communityTab === "abonnes" && (
                     <>
-                      <div className="section-label">{t.tab_followers}</div>
+                      <div className="cx-section">{t.tab_followers}</div>
                       <div className="note" style={{ marginBottom: 14 }}>{followerUsers.length} · {t.followers_count}</div>
-                      {followerProfiles.length === 0 && <div className="empty-state"><span className="ic">👥</span><div className="txt">{t.no_followers}</div></div>}
+                      {followerProfiles.length === 0 && <div className="cx-empty"><span className="ic">👥</span><div className="txt">{t.no_followers}</div></div>}
                       {followerProfiles.map((p) => (
-                        <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                        <div className="cx-person clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
                           <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
                           <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.followers_count}</div></div>
                           <RelationActions profileId={p.id} compact />
@@ -4227,7 +4754,7 @@ export default function App() {
 
                   {communityTab === "decouvrir" && (
                     <>
-                      <div className="section-label">{t.discover_people_title}</div>
+                      <div className="cx-section">{t.discover_people_title}</div>
                       <div className="note" style={{ marginBottom: 14 }}>{t.discover_people_sub}</div>
                       <div className="search-bar" style={{ marginBottom: 14 }}>
                         <Search size={16} strokeWidth={2} />
@@ -4238,7 +4765,7 @@ export default function App() {
                           {isSearchingUsers && <div className="note" style={{ marginBottom: 10 }}>{t.searching}</div>}
                           {!isSearchingUsers && userSearchResults.length === 0 && <div className="note" style={{ marginBottom: 14 }}>{t.no_users_found}</div>}
                           {userSearchResults.map((p) => (
-                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                            <div className="cx-person clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
                               <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
                               <div><div className="friend-name">{p.display_name || t.profile_fan}</div><div className="friend-bio">{t.view_profile}</div></div>
                               <RelationActions profileId={p.id} compact />
@@ -4248,7 +4775,7 @@ export default function App() {
                       ) : (
                         <>
                           {discoverPeople.filter((p) => !followingUsers.includes(p.id)).map((p) => (
-                            <div className="friend-card clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
+                            <div className="cx-person clickable" key={p.id} onClick={() => openPublicProfile(p.id)}>
                               <div className="friend-avatar">{p.avatar_icon || "🎶"}</div>
                               <div>
                                 <div className="friend-name">{p.display_name || p.creator_name || t.profile_fan}</div>
@@ -4258,7 +4785,7 @@ export default function App() {
                             </div>
                           ))}
                           {discoverPeople.filter((p) => !followingUsers.includes(p.id)).length === 0 && (
-                            <div className="empty-state"><span className="ic">🔍</span><div className="txt">{t.user_search_hint}</div></div>
+                            <div className="cx-empty"><span className="ic">🔍</span><div className="txt">{t.user_search_hint}</div></div>
                           )}
                         </>
                       )}
@@ -4267,23 +4794,64 @@ export default function App() {
 
                   {communityTab === "feed" && (
                     <>
-                      <div className="feed-mode-row">
-                        <div className={`subtab feed-primary${feedMode === "abonnements" ? " selected" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</div>
-                        <div className={`subtab${feedMode === "pourtoi" ? " selected" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</div>
+                      <div className="cx-stories">
+                        <div className="cx-stories-label">{t.story_section}</div>
+                        <div className="story-row">
+                          <div className="story-chip" onClick={() => (myStories.length ? openStory(myStories[0].id) : openStoryCreate())}>
+                            <div className={`story-ticket${myStories.some((st) => !seenStories.includes(st.id)) ? " unseen" : ""}`}>
+                              {myStory?.media ? (
+                                <div className="story-ticket-media">{myStory.type === "video" ? <video src={myStory.media} muted playsInline /> : <img src={myStory.media} alt="" />}</div>
+                              ) : <div className="story-ticket-media" style={{ background: myStory?.color || "linear-gradient(145deg,#171A20,#0B0D10)" }} />}
+                              <div className="story-ticket-overlay" />
+                              <div className="story-ticket-icon">{myStory?.authorIcon || "👤"}</div>
+                              <div className="story-ticket-name">{t.story_your}</div>
+                              <div className="story-ticket-label">{myStory ? "Ta story" : "Créer"}</div>
+                              <div className="story-ticket-add" onClick={(e) => { e.stopPropagation(); openStoryCreate(); }}><Plus size={12} strokeWidth={3} /></div>
+                            </div>
+                          </div>
+                          {otherStoryHeads.map((s) => {
+                            const authorStack = otherStoriesByAuthor.get(s.authorId) || [s];
+                            const headOpenId = authorStack[0].id;
+                            const authorUnseen = authorStack.some((st) => !seenStories.includes(st.id));
+                            const m = COMMUNITY_MEMBERS.find((mm) => mm.id === s.authorId);
+                            const profile = communityProfiles[s.authorId];
+                            const name = s.authorName || profile?.display_name || (m ? m.name : "243Kulture");
+                            return (
+                              <div className="story-chip" key={s.id} onClick={() => openStory(headOpenId)}>
+                                <div className={`story-ticket${authorUnseen ? " unseen" : ""}`}>
+                                  {s.media ? (
+                                    <div className="story-ticket-media">{s.type === "video" ? <video src={s.media} muted playsInline /> : <img src={s.media} alt="" />}</div>
+                                  ) : <div className="story-ticket-media" style={{ background: s.color || "linear-gradient(145deg,#171A20,#0B0D10)" }} />}
+                                  <div className="story-ticket-overlay" />
+                                  <div className="story-ticket-icon">{s.authorIcon || profile?.avatar_icon || (m ? m.icon : "🎤")}</div>
+                                  <div className="story-ticket-name">{name.split(" ")[0]}</div>
+                                  <div className="story-ticket-label">Kulture</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="feed-mode-hint">{feedMode === "abonnements" ? t.feed_mode_subs_hint : t.feed_mode_foryou_hint}</div>
+
+                      <div className="cx-compose">
+                        <input type="text" placeholder={t.post_placeholder} value={newPost}
+                          onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
+                        <label className="post-media-btn" title="Ajouter une photo ou une vidéo"><ImageIcon size={17} /><input type="file" accept="image/*,video/*" capture="environment" hidden onChange={handlePostMediaPick} /></label>
+                        <div className="post-send" onClick={addPost}>{t.post_btn}</div>
+                      </div>
+                      {postMediaPreview && <div className="post-media-preview">{postMediaType === "video" ? <video src={postMediaPreview} controls /> : <img src={postMediaPreview} alt="" />}<button type="button" onClick={() => { setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null); }}><X size={14}/></button></div>}
+
+                      <div className="cx-feed-modes">
+                        <button type="button" className={`cx-feed-mode${feedMode === "abonnements" ? " active" : ""}`} onClick={() => setFeedMode("abonnements")}>{t.feed_subscriptions}</button>
+                        <button type="button" className={`cx-feed-mode${feedMode === "pourtoi" ? " active" : ""}`} onClick={() => setFeedMode("pourtoi")}>{t.feed_for_you}</button>
+                      </div>
+                      <div className="cx-hint">{feedMode === "abonnements" ? t.feed_mode_subs_hint : t.feed_mode_foryou_hint}</div>
                       {(usingCachedFeed || offlineFeedNote) && (
                         <div className="note" style={{ marginBottom: 8 }}>{offlineFeedNote || t.offline_banner}</div>
                       )}
-                      <div className="post-compose" style={{ alignItems: "stretch", flexWrap: "wrap" }}>
-                        <input type="text" placeholder={t.post_placeholder} value={newPost}
-                          onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPost()} />
-                        <label className="post-media-btn" title="Ajouter une photo ou une vidéo"><ImageIcon size={17} /><input type="file" accept="image/*,video/*" hidden onChange={handlePostMediaPick} /></label>
-                        <div className="post-send" onClick={addPost}>{t.post_btn}</div>
-                      </div>
-                      {postMediaPreview && <div className="post-media-preview">{postMediaType === "video" ? <video src={postMediaPreview} controls /> : <img src={postMediaPreview} alt="" />}<button onClick={() => { setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null); }}><X size={14}/></button></div>}
+
                       {feedMode === "abonnements" && visibleFeedPosts.length === 0 && (
-                        <div className="empty-state feed-empty">
+                        <div className="cx-empty feed-empty">
                           <span className="ic">👀</span>
                           <div className="txt-title">{t.feed_subs_empty_title}</div>
                           <div className="txt">{t.feed_subs_empty_sub || t.feed_subs_empty}</div>
@@ -4297,7 +4865,7 @@ export default function App() {
                       {visibleFeedPosts.map((p) => {
                         const comments = commentsByPost[p.id] || [];
                         return (
-                        <div className={`post-card${highlightPostId && highlightPostId === p.id ? " deep-link-target" : ""}`} key={p.id} data-post-id={p.id}>
+                        <div className={`cx-post${highlightPostId && highlightPostId === p.id ? " deep-link-target" : ""}`} key={p.id} data-post-id={p.id}>
                           <div className="post-head">
                             <div className="post-avatar" style={{ cursor: p.authorId ? "pointer" : "default" }} onClick={() => openAuthorProfile(p.authorId)}>{p.icon}</div>
                             <div>
@@ -4357,7 +4925,7 @@ export default function App() {
                   {communityTab === "messages" && (
                     <>
                       {friends.length === 0 ? (
-                        <div className="empty-state"><span className="ic">💬</span><div className="txt">{t.msg_empty}</div></div>
+                        <div className="cx-empty"><span className="ic">💬</span><div className="txt">{t.msg_empty}</div></div>
                       ) : isSupabaseConfigured ? (
                         realFriendProfiles.map((p) => {
                           const conv = conversations[p.id] || [];
@@ -4616,57 +5184,120 @@ export default function App() {
               <span className="back" onClick={() => go("amis")} style={{ margin: 0 }}>← </span>
               <div><div className="htitle">{t.public_profile}</div><div className="hsub">243Kulture</div></div>
             </div>
-            <div className="content">
+            <div className="content profile-experience">
               {viewedProfileLoading && <div className="note">{t.friend_action_loading}</div>}
               {friendActionError && <div className="note" style={{ marginBottom: 10, color: "#f3b4b4" }}>{friendActionError}</div>}
               {!viewedProfileLoading && !viewedProfile && (
                 <div className="empty-state"><span className="ic">👤</span><div className="txt">{t.profile_not_found}</div></div>
               )}
-              {!viewedProfileLoading && viewedProfile && (
-                <>
-                  <div className="profile-avatar">{viewedProfile.avatar_icon || "🎶"}</div>
-                  <div className="profile-name">{viewedProfile.display_name || viewedProfile.creator_name || t.profile_fan}</div>
-                  {viewedProfile.creator_status && viewedProfile.creator_status !== "member" && (
-                    <div className="streak-pill" style={{ margin: "6px auto 10px", display: "flex", width: "fit-content" }}><Star size={13} /> {creatorStatusLabel(viewedProfile.creator_status, lang)}</div>
-                  )}
-                  {viewedProfile.creator_type && <div className="note" style={{ textAlign: "center", marginBottom: 4 }}>{t.profile_creator_type}: {viewedProfile.creator_type}</div>}
-                  {viewedProfile.onboarding_country && <div className="note" style={{ textAlign: "center", marginBottom: 8 }}>{viewedProfile.onboarding_country}</div>}
-                  {viewedProfile.creator_bio && <div className="note" style={{ textAlign: "center", marginBottom: 14 }}>{viewedProfile.creator_bio}</div>}
-                  <div className="profile-stats-row">
-                    <div className="profile-stat"><div className="n">{viewedProfileStats.followers}</div><div className="l">{t.followers_count}</div></div>
-                    <div className="profile-stat"><div className="n">{viewedProfileStats.following}</div><div className="l">{t.following_count}</div></div>
-                    <div className="profile-stat"><div className="n">{viewedProfileStats.posts}</div><div className="l">{t.posts_count}</div></div>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-                    <RelationActions profileId={viewedProfile.id} />
-                  </div>
-                  {user && viewedProfile.id !== user.id && (
-                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                      <button
-                        type="button"
-                        className="report-inline-btn"
-                        onClick={() => openReportSheet({
-                          targetType: "user",
-                          targetId: viewedProfile.id,
-                          targetUserId: viewedProfile.id,
-                          label: viewedProfile.display_name || t.report_title,
-                        })}
-                      ><Flag size={13} /> {t.report_action}</button>
-                    </div>
-                  )}
-                  <div className="section-label">{t.profile_public_posts}</div>
-                  {viewedProfilePosts.length === 0 && <div className="note">{t.feed_subs_empty}</div>}
-                  {viewedProfilePosts.map((p) => (
-                    <div className="post-card" key={p.id}>
-                      <div className="post-time" style={{ marginBottom: 6 }}>{p.time}</div>
-                      <div className="post-text">{p.text}</div>
-                      {p.media_url && (p.media_type === "video"
-                        ? <video className="post-media" src={p.media_url} controls />
-                        : <img className="post-media" src={p.media_url} alt="" />)}
-                    </div>
-                  ))}
-                </>
-              )}
+              {!viewedProfileLoading && viewedProfile && (() => {
+                const following = isFollowing(followingUsers, viewedProfile.id);
+                const theirStories = visibleStories.filter((st) => st.authorId === viewedProfile.id);
+                const openMessage = () => openDirectMessage(viewedProfile.id, viewedProfile);
+                return (
+                  <>
+                    <ProfileHero
+                      profileId={viewedProfile.id}
+                      displayName={viewedProfile.display_name || viewedProfile.creator_name || t.profile_fan}
+                      avatarIcon={viewedProfile.avatar_icon || "🎶"}
+                      bio={viewedProfile.creator_bio || null}
+                      country={viewedProfile.onboarding_country || null}
+                      handle={viewedProfile.creator_handle || null}
+                      creatorStatus={viewedProfile.creator_status}
+                      creatorStatusLabel={creatorStatusLabel(viewedProfile.creator_status, lang)}
+                      creatorType={viewedProfile.creator_type || null}
+                      stats={viewedProfileStats}
+                      isSelf={false}
+                      t={t}
+                      tab={profileTab}
+                      onTabChange={setProfileTab}
+                      showStoriesTab={theirStories.length > 0}
+                      hasActiveStory={theirStories.length > 0}
+                      storyUnseen={theirStories.some((st) => !seenStories.includes(st.id))}
+                      onAvatarClick={theirStories.length ? () => openStory(theirStories[0].id) : null}
+                      primaryActions={
+                        <ProfileCtaButton
+                          variant="primary"
+                          className={following ? "is-following" : ""}
+                          disabled={Boolean(friendActionBusy)}
+                          onClick={() => toggleUserFollow(viewedProfile.id)}
+                        >
+                          {friendActionBusy === `follow:${viewedProfile.id}`
+                            ? t.friend_action_loading
+                            : (following ? t.unfollow_action : t.follow_action)}
+                        </ProfileCtaButton>
+                      }
+                      secondaryActions={
+                        <ProfileCtaButton variant="secondary" onClick={openMessage}>
+                          <MessageCircle size={14} /> {t.profile_message}
+                        </ProfileCtaButton>
+                      }
+                      belowActions={
+                        <div className="profile-friend-slot">
+                          <RelationActions profileId={viewedProfile.id} hideFollow compact />
+                          {user && viewedProfile.id !== user.id && (
+                            <button
+                              type="button"
+                              className="report-inline-btn"
+                              style={{ marginLeft: 8 }}
+                              onClick={() => openReportSheet({
+                                targetType: "user",
+                                targetId: viewedProfile.id,
+                                targetUserId: viewedProfile.id,
+                                label: viewedProfile.display_name || t.report_title,
+                              })}
+                            ><Flag size={13} /> {t.report_action}</button>
+                          )}
+                        </div>
+                      }
+                    />
+                    {profileTab === "publications" && (
+                      <>
+                        {viewedProfilePosts.length === 0 && (
+                          <div className="empty-state"><span className="ic">▦</span><div className="txt">{t.profile_grid_empty}</div></div>
+                        )}
+                        {viewedProfilePosts.length > 0 && (
+                          <div className="profile-grid">
+                            {viewedProfilePosts.map((p) => (
+                              <div className="profile-grid-item" key={p.id}>
+                                {p.media_url ? (
+                                  p.media_type === "video"
+                                    ? <video src={p.media_url} muted playsInline />
+                                    : <img src={p.media_url} alt="" />
+                                ) : (
+                                  <div className="txt-tile">{(p.text || "").slice(0, 80)}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {profileTab === "stories" && (
+                      <>
+                        {theirStories.length === 0 ? (
+                          <div className="empty-state"><span className="ic">◎</span><div className="txt">{t.profile_stories_empty}</div></div>
+                        ) : (
+                          <div className="profile-stories-row">
+                            {theirStories.map((st) => (
+                              <div className="profile-story-chip" key={st.id} onClick={() => openStory(st.id)}>
+                                <div className="profile-story-ring">
+                                  <div className="profile-story-ring-inner">
+                                    {(st.type === "photo" || st.type === "image") && st.media ? <img src={st.media} alt="" />
+                                      : st.type === "video" && st.media ? <video src={st.media} muted />
+                                      : (st.authorIcon || "🎤")}
+                                  </div>
+                                </div>
+                                <div className="note" style={{ fontSize: 10 }}>{st.type}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </>
         )}

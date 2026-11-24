@@ -394,5 +394,15 @@
   "report_reason_privacy": "Vie privée",
   "report_reason_ip": "Propriété intellectuelle",
   "report_reason_spam": "Spam",
-  "report_reason_other": "Mosusu"
+  "report_reason_other": "Mosusu",
+  "profile_tab_publications": "Makomi",
+  "profile_tab_stories": "Stories",
+  "profile_tab_about": "Konti",
+  "profile_edit": "Bobongola",
+  "profile_message": "Liyebisi",
+  "profile_grid_empty": "Makomi ezali te tii sikoyo.",
+  "profile_stories_empty": "Story ya 24h ezali te.",
+  "profile_cover_hint": "Cover ebotami — foto ya yo sikoyo.",
+  "profile_open_story": "Tala Story",
+  "profile_become_creator": "Mosali"
 }

@@ -393,5 +393,15 @@
   "report_reason_privacy": "Privacyinbreuk",
   "report_reason_ip": "Intellectuele eigendom",
   "report_reason_spam": "Spam",
-  "report_reason_other": "Andere"
+  "report_reason_other": "Andere",
+  "profile_tab_publications": "Berichten",
+  "profile_tab_stories": "Stories",
+  "profile_tab_about": "Account",
+  "profile_edit": "Bewerken",
+  "profile_message": "Bericht",
+  "profile_grid_empty": "Nog geen berichten.",
+  "profile_stories_empty": "Geen actieve Story (24 u).",
+  "profile_cover_hint": "Gegenereerde cover — eigen foto binnenkort.",
+  "profile_open_story": "Story bekijken",
+  "profile_become_creator": "Creator"
 }
