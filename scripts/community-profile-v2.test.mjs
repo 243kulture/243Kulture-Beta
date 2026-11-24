@@ -24,6 +24,22 @@ for (const hex of PALETTE) {
 
 assert.ok(app.includes(".community-experience"), "community CSS scope");
 assert.ok(app.includes(".profile-experience"), "profile CSS scope");
+
+// Jour Kin light theme — Community/Profile follow data-theme (not dark-only)
+assert.ok(
+  app.includes('html[data-theme="light"] .community-experience') &&
+    app.includes('html[data-theme="light"] .profile-experience'),
+  "light theme overrides for community/profile experiences"
+);
+assert.ok(app.includes("--cx-bg: #F7F4EF"), "Jour Kin cream bg for CX light");
+assert.ok(app.includes("--cx-surface: #FFFFFF"), "white surface for CX light");
+assert.ok(app.includes("--cx-text: #12141A"), "dark text for CX light");
+assert.ok(app.includes("--cx-gold: #E9B943"), "gold accent preserved");
+assert.ok(
+  app.includes('html[data-theme="system"] .community-experience'),
+  "system appearance resolves CX light via prefers-color-scheme"
+);
+assert.ok(hero.includes("profileCoverStyle") && hero.includes("--cx-cover-"), "theme-aware profile covers");
 assert.ok(
   /\.nav-fab\s*\{[^}]*background:\s*#E9B943/s.test(app) &&
     /\.nav-fab\s*\{[^}]*color:\s*#0B0D10/s.test(app),

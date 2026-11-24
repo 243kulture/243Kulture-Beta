@@ -2997,6 +2997,7 @@ export default function App() {
         /* ==========================================================
            COMMUNITY + PROFILE V2 — Premium Editorial (scoped)
            Palette isolated under .community-experience / .profile-experience
+           Dark = Nuit 243 default; Light = Jour Kin via data-theme
            ========================================================== */
         .community-experience, .profile-experience {
           --cx-bg: #0B0D10;
@@ -3005,7 +3006,58 @@ export default function App() {
           --cx-text: #F5F5F5;
           --cx-muted: #A1A6B0;
           --cx-line: rgba(245,245,245,0.08);
+          --cx-on-gold: #0B0D10;
+          --cx-bio: rgba(245,245,245,0.82);
+          --cx-scrim: rgba(11,13,16,0.78);
+          --cx-media-btn: rgba(11,13,16,0.75);
+          --cx-ink-grad: linear-gradient(145deg, #171A20, #0B0D10);
+          --cx-story-grad: linear-gradient(160deg, #171A20, #0B0D10);
+          --cx-cover-0: radial-gradient(ellipse 90% 70% at 18% 0%, rgba(233,185,67,.28) 0%, transparent 55%), linear-gradient(145deg, #171A20 0%, #0B0D10 55%, #12151c 100%);
+          --cx-cover-1: radial-gradient(ellipse 80% 65% at 85% 8%, rgba(233,185,67,.22) 0%, transparent 50%), linear-gradient(160deg, #0B0D10 0%, #1a1e28 48%, #0B0D10 100%);
+          --cx-cover-2: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(245,245,245,.08) 0%, transparent 50%), linear-gradient(135deg, #12151c 0%, #0B0D10 40%, #171A20 100%);
+          --cx-cover-3: radial-gradient(ellipse 85% 75% at 30% 15%, rgba(233,185,67,.18) 0%, transparent 52%), linear-gradient(150deg, #0B0D10 0%, #171A20 60%, #0B0D10 100%);
           color: var(--cx-text);
+        }
+        /* Jour Kin light — follows html[data-theme] (System / Dark / Light) */
+        html[data-theme="light"] .community-experience,
+        html[data-theme="light"] .profile-experience {
+          --cx-bg: #F7F4EF;
+          --cx-surface: #FFFFFF;
+          --cx-gold: #E9B943;
+          --cx-text: #12141A;
+          --cx-muted: #5C6570;
+          --cx-line: rgba(18,20,26,0.08);
+          --cx-on-gold: #0B0D10;
+          --cx-bio: rgba(18,20,26,0.78);
+          --cx-scrim: rgba(18,20,26,0.55);
+          --cx-media-btn: rgba(18,20,26,0.72);
+          --cx-ink-grad: linear-gradient(145deg, #FFFFFF, #F0EBE3);
+          --cx-story-grad: linear-gradient(160deg, #FFFFFF, #F0EBE3);
+          --cx-cover-0: radial-gradient(ellipse 90% 70% at 18% 0%, rgba(233,185,67,.32) 0%, transparent 55%), linear-gradient(145deg, #FFFFFF 0%, #F7F4EF 55%, #EFE8DE 100%);
+          --cx-cover-1: radial-gradient(ellipse 80% 65% at 85% 8%, rgba(233,185,67,.26) 0%, transparent 50%), linear-gradient(160deg, #F7F4EF 0%, #FFFFFF 48%, #EFE8DE 100%);
+          --cx-cover-2: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(30,95,168,.08) 0%, transparent 50%), linear-gradient(135deg, #FFFFFF 0%, #F7F4EF 40%, #E8E0D4 100%);
+          --cx-cover-3: radial-gradient(ellipse 85% 75% at 30% 15%, rgba(233,185,67,.22) 0%, transparent 52%), linear-gradient(150deg, #F7F4EF 0%, #FFFFFF 60%, #EFE8DE 100%);
+        }
+        @media (prefers-color-scheme: light) {
+          html[data-theme="system"] .community-experience,
+          html[data-theme="system"] .profile-experience {
+            --cx-bg: #F7F4EF;
+            --cx-surface: #FFFFFF;
+            --cx-gold: #E9B943;
+            --cx-text: #12141A;
+            --cx-muted: #5C6570;
+            --cx-line: rgba(18,20,26,0.08);
+            --cx-on-gold: #0B0D10;
+            --cx-bio: rgba(18,20,26,0.78);
+            --cx-scrim: rgba(18,20,26,0.55);
+            --cx-media-btn: rgba(18,20,26,0.72);
+            --cx-ink-grad: linear-gradient(145deg, #FFFFFF, #F0EBE3);
+            --cx-story-grad: linear-gradient(160deg, #FFFFFF, #F0EBE3);
+            --cx-cover-0: radial-gradient(ellipse 90% 70% at 18% 0%, rgba(233,185,67,.32) 0%, transparent 55%), linear-gradient(145deg, #FFFFFF 0%, #F7F4EF 55%, #EFE8DE 100%);
+            --cx-cover-1: radial-gradient(ellipse 80% 65% at 85% 8%, rgba(233,185,67,.26) 0%, transparent 50%), linear-gradient(160deg, #F7F4EF 0%, #FFFFFF 48%, #EFE8DE 100%);
+            --cx-cover-2: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(30,95,168,.08) 0%, transparent 50%), linear-gradient(135deg, #FFFFFF 0%, #F7F4EF 40%, #E8E0D4 100%);
+            --cx-cover-3: radial-gradient(ellipse 85% 75% at 30% 15%, rgba(233,185,67,.22) 0%, transparent 52%), linear-gradient(150deg, #F7F4EF 0%, #FFFFFF 60%, #EFE8DE 100%);
+          }
         }
         .community-experience .cx-header, .profile-experience .cx-header {
           display: flex; align-items: flex-start; gap: 10px; padding: 4px 0 14px;
@@ -3053,7 +3105,7 @@ export default function App() {
         }
         .community-experience .story-ticket {
           border-radius: 4px 4px 14px 14px; border: 1px solid var(--cx-line);
-          box-shadow: none; background: linear-gradient(160deg, #171A20, #0B0D10);
+          box-shadow: none; background: var(--cx-story-grad);
         }
         .community-experience .story-ticket.unseen { border-color: rgba(233,185,67,.55); box-shadow: 0 0 0 1px rgba(233,185,67,.15); }
         .community-experience .story-ticket-add { border-radius: 50%; background: var(--cx-gold); }
@@ -3079,7 +3131,7 @@ export default function App() {
           background: transparent; border: 1px solid var(--cx-line); color: var(--cx-muted);
         }
         .community-experience .cx-compose .post-send {
-          background: var(--cx-gold); color: #0B0D10; border: none;
+          background: var(--cx-gold); color: var(--cx-on-gold); border: none;
         }
         .community-experience .post-media-preview {
           margin: 0 0 14px; border-radius: 4px; overflow: hidden; border: 1px solid var(--cx-line);
@@ -3088,7 +3140,7 @@ export default function App() {
         .community-experience .post-media-preview img,
         .community-experience .post-media-preview video { width: 100%; display: block; max-height: 220px; object-fit: cover; }
         .community-experience .post-media-preview button {
-          position: absolute; top: 8px; right: 8px; border: none; background: rgba(11,13,16,.75);
+          position: absolute; top: 8px; right: 8px; border: none; background: var(--cx-media-btn);
           color: #fff; border-radius: 50%; width: 28px; height: 28px; cursor: pointer;
         }
 
@@ -3101,7 +3153,7 @@ export default function App() {
         .community-experience .cx-post .post-head { margin-bottom: 10px; }
         .community-experience .cx-post .post-avatar {
           width: 36px; height: 36px; border-radius: 50%;
-          background: linear-gradient(145deg, #171A20, #0B0D10); border: 1px solid var(--cx-line);
+          background: var(--cx-ink-grad); border: 1px solid var(--cx-line);
         }
         .community-experience .cx-post .post-name { color: var(--cx-text); font-family: var(--font-title); font-size: 13px; }
         .community-experience .cx-post .post-name.clickable { color: var(--cx-gold); }
@@ -3142,13 +3194,13 @@ export default function App() {
         .community-experience .cx-person.clickable { cursor: pointer; }
         .community-experience .cx-person .friend-avatar {
           width: 44px; height: 44px; border-radius: 50%;
-          background: linear-gradient(145deg, #171A20, #0B0D10); border: 1px solid var(--cx-line);
+          background: var(--cx-ink-grad); border: 1px solid var(--cx-line);
           display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
         }
         .community-experience .cx-person .friend-name { color: var(--cx-text); font-family: var(--font-title); font-size: 13.5px; font-weight: 700; }
         .community-experience .cx-person .friend-bio { color: var(--cx-muted); font-size: 11.5px; }
         .community-experience .cx-person .friend-actions { margin-left: auto; }
-        .community-experience .cx-person .friend-btn.add { background: var(--cx-gold); color: #0B0D10; border-radius: 999px; }
+        .community-experience .cx-person .friend-btn.add { background: var(--cx-gold); color: var(--cx-on-gold); border-radius: 999px; }
         .community-experience .cx-person .friend-btn.added,
         .community-experience .cx-person .friend-btn.pending {
           background: transparent; border: 1px solid var(--cx-line); color: var(--cx-muted); border-radius: 999px;
@@ -3167,7 +3219,7 @@ export default function App() {
           border: 1px solid var(--cx-line); background: transparent; color: var(--cx-text);
           border-radius: 999px; padding: 10px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
         }
-        .community-experience .feed-empty-cta.primary { background: var(--cx-gold); color: #0B0D10; border-color: transparent; }
+        .community-experience .feed-empty-cta.primary { background: var(--cx-gold); color: var(--cx-on-gold); border-color: transparent; }
         .community-experience .search-bar {
           background: transparent; border: none; border-bottom: 1px solid var(--cx-line); border-radius: 0;
           color: var(--cx-text);
@@ -3195,10 +3247,10 @@ export default function App() {
           50% { filter: drop-shadow(0 0 8px rgba(233,185,67,.35)); }
         }
         .profile-experience .profile-avatar-btn:not(.has-story) .profile-avatar-lg { border: 2px solid rgba(233,185,67,.55); }
-        .profile-experience .profile-avatar-btn.has-story .profile-avatar-lg { border: 3px solid #0B0D10; }
+        .profile-experience .profile-avatar-btn.has-story .profile-avatar-lg { border: 3px solid var(--cx-bg); }
         .profile-experience .profile-avatar-lg {
           width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-          font-size: 34px; background: linear-gradient(145deg, #171A20, #0B0D10); color: #F5F5F5;
+          font-size: 34px; background: var(--cx-ink-grad); color: var(--cx-text);
         }
         .profile-experience .profile-identity { text-align: center; margin-top: 10px; }
         .profile-experience .profile-name-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -3213,7 +3265,7 @@ export default function App() {
         .profile-experience .profile-handle { color: var(--cx-gold); font-weight: 600; }
         .profile-experience .profile-meta-dot { opacity: .5; }
         .profile-experience .profile-bio {
-          margin: 10px auto 0; max-width: 320px; font-size: 13px; line-height: 1.5; color: rgba(245,245,245,.82);
+          margin: 10px auto 0; max-width: 320px; font-size: 13px; line-height: 1.5; color: var(--cx-bio);
         }
         .profile-experience .profile-stats-row--hero {
           display: flex; gap: 0; justify-content: center; margin: 16px 0 14px; border-top: 1px solid var(--cx-line);
@@ -3231,7 +3283,7 @@ export default function App() {
           display: inline-flex; align-items: center; justify-content: center; gap: 6px;
         }
         .profile-experience .profile-cta:disabled { opacity: .45; cursor: default; }
-        .profile-experience .profile-cta--primary { background: var(--cx-gold); color: #0B0D10; }
+        .profile-experience .profile-cta--primary { background: var(--cx-gold); color: var(--cx-on-gold); }
         .profile-experience .profile-cta--primary.is-following {
           background: transparent; color: var(--cx-gold); border-color: rgba(233,185,67,.55);
         }
@@ -3250,8 +3302,8 @@ export default function App() {
         .profile-experience .profile-grid-item img,
         .profile-experience .profile-grid-item video { width: 100%; height: 100%; object-fit: cover; display: block; }
         .profile-experience .profile-grid-item .txt-tile {
-          position: absolute; inset: 0; padding: 8px; font-size: 10px; line-height: 1.3; color: var(--cx-text);
-          display: flex; align-items: flex-end; background: linear-gradient(180deg, transparent 30%, rgba(11,13,16,.78));
+          position: absolute; inset: 0; padding: 8px; font-size: 10px; line-height: 1.3; color: #F5F5F5;
+          display: flex; align-items: flex-end; background: linear-gradient(180deg, transparent 30%, var(--cx-scrim));
         }
         .profile-experience .profile-stories-row { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 16px; }
         .profile-experience .profile-story-chip { flex: 0 0 auto; width: 72px; text-align: center; cursor: pointer; }
@@ -3259,7 +3311,7 @@ export default function App() {
           width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--cx-gold); padding: 2px; margin: 0 auto 4px;
         }
         .profile-experience .profile-story-ring-inner {
-          width: 100%; height: 100%; border-radius: 50%; background: linear-gradient(145deg, #171A20, #0B0D10);
+          width: 100%; height: 100%; border-radius: 50%; background: var(--cx-ink-grad);
           display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden;
         }
         .profile-experience .profile-story-ring-inner img,
