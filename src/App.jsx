@@ -1078,7 +1078,7 @@ export default function App() {
     const isUiPreview = () => {
       try {
         const p = new URLSearchParams(window.location.search).get("uiPreview");
-        return p === "profile" || p === "community";
+        return p === "profile" || p === "community" || p === "home";
       } catch { return false; }
     };
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -1096,7 +1096,7 @@ export default function App() {
   useEffect(() => {
     try {
       const p = new URLSearchParams(window.location.search).get("uiPreview");
-      if (p === "profile" || p === "community") return;
+      if (p === "profile" || p === "community" || p === "home") return;
     } catch { /* ignore */ }
     const redirect = redirectForGate(gate, screen);
     if (redirect && redirect !== screen) setScreen(redirect);
@@ -2345,17 +2345,17 @@ export default function App() {
   useEffect(() => {
     try {
       const p = new URLSearchParams(window.location.search).get("uiPreview");
-      if (p === "profile" || p === "community") return; // keep preview tab=…
+      if (p === "profile" || p === "community" || p === "home") return; // keep preview tab=…
     } catch { /* ignore */ }
     if (screen === "profil" || screen === "userProfile") setProfileTab("publications");
   }, [screen, viewedProfile?.id]);
 
-  // QA-only visual preview (?uiPreview=profile|community) — no auth required.
+  // QA-only visual preview (?uiPreview=profile|community|home) — no auth required.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const preview = params.get("uiPreview");
-    if (preview !== "profile" && preview !== "community") return;
+    if (preview !== "profile" && preview !== "community" && preview !== "home") return;
     const asOther = params.get("as") === "other";
     const tab = params.get("tab");
     const previewId = "demo-preview-self";
@@ -2411,6 +2411,11 @@ export default function App() {
       setCommunityTab(tab === "amis" ? "amis" : tab === "abonnements" ? "abonnements" : tab === "abonnes" ? "abonnes" : tab === "messages" ? "messages" : "feed");
       setFeedMode("abonnements");
       setScreen("amis");
+      return;
+    }
+    if (preview === "home") {
+      setFeedMode("abonnements");
+      setScreen("home");
       return;
     }
     if (asOther) {
@@ -2995,11 +3000,11 @@ export default function App() {
 
 
         /* ==========================================================
-           COMMUNITY + PROFILE V2 — Premium Editorial (scoped)
-           Palette isolated under .community-experience / .profile-experience
+           COMMUNITY + PROFILE + HOME — Premium Editorial (scoped)
+           Palette isolated under .community-experience / .profile-experience / .home-experience
            Dark = Nuit 243 default; Light = Jour Kin via data-theme
            ========================================================== */
-        .community-experience, .profile-experience {
+        .community-experience, .profile-experience, .home-experience {
           --cx-bg: #0B0D10;
           --cx-surface: #171A20;
           --cx-gold: #E9B943;
@@ -3020,7 +3025,8 @@ export default function App() {
         }
         /* Jour Kin light — follows html[data-theme] (System / Dark / Light) */
         html[data-theme="light"] .community-experience,
-        html[data-theme="light"] .profile-experience {
+        html[data-theme="light"] .profile-experience,
+        html[data-theme="light"] .home-experience {
           --cx-bg: #F7F4EF;
           --cx-surface: #FFFFFF;
           --cx-gold: #E9B943;
@@ -3040,7 +3046,8 @@ export default function App() {
         }
         @media (prefers-color-scheme: light) {
           html[data-theme="system"] .community-experience,
-          html[data-theme="system"] .profile-experience {
+          html[data-theme="system"] .profile-experience,
+          html[data-theme="system"] .home-experience {
             --cx-bg: #F7F4EF;
             --cx-surface: #FFFFFF;
             --cx-gold: #E9B943;
@@ -3323,6 +3330,186 @@ export default function App() {
         }
 
         /* ==========================================================
+           HOME — Premium Editorial (scoped under .home-experience)
+           Stories / vibe / daily action / discovery preserved; no glass cards
+           ========================================================== */
+        .home-experience {
+          --hx-gold: var(--cx-gold);
+          --hx-text: var(--cx-text);
+          --hx-muted: var(--cx-muted);
+          --hx-line: var(--cx-line);
+          --hx-surface: var(--cx-surface);
+          --hx-on-gold: var(--cx-on-gold);
+          --hx-story-grad: var(--cx-story-grad);
+          --hx-ink-grad: var(--cx-ink-grad);
+        }
+        .home-experience .story-section { margin: 0 0 20px; padding-bottom: 16px; border-bottom: 1px solid var(--hx-line); }
+        .home-experience .story-section-head { margin-bottom: 12px; }
+        .home-experience .story-section-title {
+          font-family: var(--font-title); font-size: 10.5px; font-weight: 700;
+          letter-spacing: .12em; text-transform: uppercase; color: var(--hx-muted);
+        }
+        .home-experience .story-section-sub { font-size: 10px; color: var(--hx-muted); letter-spacing: .04em; }
+        .home-experience .story-ticket {
+          border-radius: 4px 4px 14px 14px; border: 1px solid var(--hx-line);
+          box-shadow: none; background: var(--hx-story-grad);
+        }
+        .home-experience .story-ticket.unseen {
+          border-color: rgba(233,185,67,.55); box-shadow: 0 0 0 1px rgba(233,185,67,.15);
+          animation: hxStoryPulse 2.6s ease-in-out infinite;
+        }
+        @keyframes hxStoryPulse {
+          0%, 100% { box-shadow: 0 0 0 1px rgba(233,185,67,.12); }
+          50% { box-shadow: 0 0 0 2px rgba(233,185,67,.28); }
+        }
+        .home-experience .story-ticket::before,
+        .home-experience .story-ticket::after { background: var(--cx-bg); }
+        .home-experience .story-ticket-add {
+          border-radius: 50%; background: var(--hx-gold); color: var(--hx-on-gold); border: none;
+        }
+        .home-experience .story-ticket-icon {
+          border-radius: 50%; background: rgba(11,13,16,.55); border: 1px solid rgba(245,245,245,.12);
+        }
+        .home-experience .daily-action {
+          margin-bottom: 18px; padding: 16px 0 18px; border-radius: 0;
+          background: transparent; border: none; border-bottom: 1px solid var(--hx-line);
+        }
+        .home-experience .daily-action::before {
+          content: ""; display: block; height: 2px; width: 36px; margin-bottom: 12px;
+          background: var(--hx-gold); animation: hxUnderline .32s ease;
+        }
+        @keyframes hxUnderline { from { transform: scaleX(0); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }
+        .home-experience .daily-action-label {
+          color: var(--hx-gold); letter-spacing: .12em; font-size: 10px;
+        }
+        .home-experience .daily-action-title {
+          font-family: var(--font-title); font-size: 16px; font-weight: 750;
+          letter-spacing: -0.02em; color: var(--hx-text); margin-bottom: 6px;
+        }
+        .home-experience .daily-action-sub { color: var(--hx-muted); font-size: 12.5px; }
+        .home-experience .daily-action .note { color: var(--hx-muted); }
+        .home-experience .daily-action-cta {
+          background: var(--hx-gold); color: var(--hx-on-gold); border-radius: 999px;
+          padding: 10px 16px; font-size: 12px;
+        }
+        .home-experience .daily-action-dismiss { color: var(--hx-muted); }
+        .home-experience .home-vibe {
+          margin-bottom: 18px; padding: 4px 0 18px; border-radius: 0;
+          background: transparent; border: none; border-bottom: 1px solid var(--hx-line);
+        }
+        .home-experience .home-vibe-title {
+          font-family: var(--font-title); font-size: 18px; font-weight: 750;
+          letter-spacing: -0.02em; color: var(--hx-text); margin-bottom: 6px;
+        }
+        .home-experience .home-vibe-sub { color: var(--hx-muted); font-size: 12.5px; margin-bottom: 14px; }
+        .home-experience .home-vibe-row { gap: 10px; }
+        .home-experience .home-vibe-cta {
+          flex: 1; border-radius: 999px; padding: 11px 12px; font-size: 12px;
+          background: var(--hx-gold); color: var(--hx-on-gold); border: none;
+          transition: transform .15s ease, filter .15s ease;
+        }
+        .home-experience .home-vibe-cta:active { transform: scale(.98); }
+        .home-experience .home-vibe-cta.secondary {
+          background: transparent; color: var(--hx-text); border: 1px solid var(--hx-line);
+        }
+        .home-experience .today-section {
+          background: transparent; border: none; border-radius: 0; padding: 4px 0 18px;
+          margin-bottom: 18px; border-bottom: 1px solid var(--hx-line);
+        }
+        .home-experience .today-section .tsl {
+          font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+          color: var(--hx-muted); margin-bottom: 10px;
+        }
+        .home-experience .today-section .card-sub { color: var(--hx-muted); }
+        .home-experience .today-section .card {
+          background: transparent; border: none; border-radius: 0; backdrop-filter: none;
+          padding: 12px 0; margin-bottom: 0; border-bottom: 1px solid var(--hx-line);
+        }
+        .home-experience .today-section .card:last-child { border-bottom: none; }
+        .home-experience .today-section .card img { border-radius: 4px; }
+        .home-experience .today-section .card-title { color: var(--hx-text); font-family: var(--font-title); }
+        .home-experience .hero-carousel { margin: 0 -16px 10px; padding: 0 16px 2px; }
+        .home-experience .hero-slide {
+          border-radius: 4px; border: 1px solid var(--hx-line); height: 176px;
+          box-shadow: none;
+        }
+        .home-experience .hero-slide::before {
+          background: linear-gradient(0deg, rgba(11,13,16,.88) 0%, rgba(11,13,16,.2) 55%, transparent 100%);
+        }
+        .home-experience .hero-tag {
+          border-radius: 4px; background: var(--hx-gold); color: var(--hx-on-gold);
+          font-family: var(--font-title); letter-spacing: .04em; font-size: 9.5px; font-weight: 800;
+        }
+        .home-experience .hero-title { font-family: var(--font-title); letter-spacing: -0.02em; }
+        .home-experience .carousel-dots { margin-bottom: 18px; }
+        .home-experience .carousel-dots span { background: var(--hx-line); border-radius: 2px; }
+        .home-experience .carousel-dots span.dotactive { background: var(--hx-gold); }
+        .home-experience .section-label {
+          font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+          color: var(--hx-muted); margin: 18px 0 12px;
+        }
+        .home-experience .section-label span { letter-spacing: 0; text-transform: none; }
+        .home-experience .artist-row { margin-bottom: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--hx-line); }
+        .home-experience .artist-avatar {
+          background: var(--hx-ink-grad); border: 1px solid var(--hx-line); color: var(--hx-text);
+        }
+        .home-experience .artist-avatar.followed { box-shadow: 0 0 0 2px rgba(233,185,67,.45); }
+        .home-experience .artist-name { color: var(--hx-muted); }
+        .home-experience > .card {
+          background: transparent; border: none; border-radius: 0; backdrop-filter: none;
+          padding: 14px 0; margin-bottom: 0; border-bottom: 1px solid var(--hx-line);
+        }
+        .home-experience > .card .thumb {
+          background: var(--hx-ink-grad); border: 1px solid var(--hx-line); color: var(--hx-gold);
+          border-radius: 4px;
+        }
+        .home-experience > .card .card-title { color: var(--hx-text); font-family: var(--font-title); }
+        .home-experience > .card .card-sub { color: var(--hx-muted); }
+        .home-experience .explore-row { gap: 0; margin-bottom: 8px; border-bottom: 1px solid var(--hx-line); padding-bottom: 4px; }
+        .home-experience .explore-tile {
+          flex: 1; background: transparent; border: none; border-radius: 0;
+          padding: 14px 8px; border-right: 1px solid var(--hx-line);
+          transition: color .2s ease;
+        }
+        .home-experience .explore-tile:last-child { border-right: none; }
+        .home-experience .explore-tile .elab { color: var(--hx-muted); font-family: var(--font-title); font-size: 10.5px; }
+        .home-experience .explore-tile:active .elab { color: var(--hx-gold); }
+        .home-experience .today-hero {
+          border-radius: 4px; padding: 20px 16px; margin: 18px 0;
+          background: var(--cx-cover-0); border: 1px solid var(--hx-line);
+        }
+        .home-experience .today-hero-badge {
+          border-radius: 4px; background: var(--hx-gold); color: var(--hx-on-gold);
+          letter-spacing: .1em;
+        }
+        .home-experience .today-hero-title {
+          font-family: var(--font-title); color: var(--hx-text); letter-spacing: -0.02em;
+        }
+        .home-experience .today-hero-sub { color: var(--hx-muted); }
+        .home-experience .today-hero-chip {
+          background: rgba(11,13,16,.35); border: 1px solid var(--hx-line); border-radius: 4px;
+        }
+        html[data-theme="light"] .home-experience .today-hero-chip {
+          background: rgba(255,255,255,.55);
+        }
+        @media (prefers-color-scheme: light) {
+          html[data-theme="system"] .home-experience .today-hero-chip {
+            background: rgba(255,255,255,.55);
+          }
+        }
+        .home-experience .today-hero-chip .tlab { color: var(--hx-muted); }
+        .home-experience .bento { gap: 12px; margin-bottom: 8px; }
+        .home-experience .bento-card {
+          background: transparent; border: none; border-radius: 0; backdrop-filter: none;
+          padding: 0 0 14px; border-bottom: 1px solid var(--hx-line);
+        }
+        .home-experience .bento-card img { border-radius: 4px; border: 1px solid var(--hx-line); }
+        .home-experience .bento-card .bit { color: var(--hx-text); font-family: var(--font-title); }
+        .home-experience .bento-card .bis { color: var(--hx-muted); }
+        .home-experience .bento-card .bic { color: var(--hx-gold); }
+        .home-experience .note { color: var(--hx-muted); }
+
+        /* ==========================================================
            VERSION WEB / DESKTOP — même code, même state, layout adapté.
            En dessous de 860px : rendu mobile inchangé (mockup téléphone).
            Au-dessus : l'app devient une vraie page web plein écran.
@@ -3598,10 +3785,10 @@ export default function App() {
                 <div className="hicon" onClick={openNotifs}><Bell size={19} strokeWidth={2} />{notifDot && <span className="dot" />}</div>
               </div>
             } />
-            <div className="content">
+            <div className="content home-experience">
               <div className="story-section">
                 <div className="story-section-head">
-                  <div className="story-section-title">✨ {t.story_section}</div>
+                  <div className="story-section-title">{t.story_section}</div>
                   <div className="story-section-sub">24h</div>
                 </div>
                 <div className="story-row">
@@ -3609,7 +3796,7 @@ export default function App() {
                     <div className={`story-ticket${myStories.some((st) => !seenStories.includes(st.id)) ? " unseen" : ""}`}>
                       {myStory?.media ? (
                         <div className="story-ticket-media">{myStory.type === "video" ? <video src={myStory.media} muted playsInline /> : <img src={myStory.media} alt="" />}</div>
-                      ) : <div className="story-ticket-media" style={{ background: myStory?.color || "linear-gradient(145deg,var(--blue),var(--green))" }} />}
+                      ) : <div className="story-ticket-media" style={{ background: myStory?.color || "linear-gradient(160deg,#171A20,#0B0D10)" }} />}
                       <div className="story-ticket-overlay" />
                       <div className="story-ticket-icon">{myStory?.authorIcon || "👤"}</div>
                       <div className="story-ticket-name">{t.story_your}</div>
@@ -3637,7 +3824,7 @@ export default function App() {
                         <div className={`story-ticket${authorUnseen ? " unseen" : ""}`}>
                           {s.media ? (
                             <div className="story-ticket-media">{s.type === "video" ? <video src={s.media} muted playsInline /> : <img src={s.media} alt="" />}</div>
-                          ) : <div className="story-ticket-media" style={{ background: s.color || "linear-gradient(145deg,var(--blue),var(--green))" }} />}
+                          ) : <div className="story-ticket-media" style={{ background: s.color || "linear-gradient(160deg,#171A20,#0B0D10)" }} />}
                           <div className="story-ticket-overlay" />
                           <div className="story-ticket-icon">{s.authorIcon || profile?.avatar_icon || (m ? m.icon : "🎤")}</div>
                           <div
@@ -3681,11 +3868,11 @@ export default function App() {
               </div>
 
               <div className="today-section" style={{ marginBottom: 18 }}>
-                <div className="tsl">✨ {t.foryou_title}</div>
+                <div className="tsl">{t.foryou_title}</div>
                 {followedArtistNames.length > 0 ? (
                   <>
                     <div className="card-sub" style={{ marginBottom: 10 }}>
-                      {t.foryou_greet} 👋 {t.foryou_follows} {followedArtistNames.join(", ")} {t.foryou_prompt}
+                      {t.foryou_greet} {t.foryou_follows} {followedArtistNames.join(", ")} {t.foryou_prompt}
                     </div>
                     {forYouPodcasts.length > 0 && forYouPodcasts.slice(0, 2).map((p) => (
                       <div className="card" key={p.id} style={{ marginBottom: 8 }} onClick={() => window.open(p.url, "_blank", "noopener,noreferrer")}>
