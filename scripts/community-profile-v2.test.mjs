@@ -28,8 +28,9 @@ assert.ok(app.includes(".profile-experience"), "profile CSS scope");
 // Jour Kin light theme — Community/Profile follow data-theme (not dark-only)
 assert.ok(
   app.includes('html[data-theme="light"] .community-experience') &&
-    app.includes('html[data-theme="light"] .profile-experience'),
-  "light theme overrides for community/profile experiences"
+    app.includes('html[data-theme="light"] .profile-experience') &&
+    app.includes('html[data-theme="light"] .home-experience'),
+  "light theme overrides for community/profile/home experiences"
 );
 assert.ok(app.includes("--cx-bg: #F7F4EF"), "Jour Kin cream bg for CX light");
 assert.ok(app.includes("--cx-surface: #FFFFFF"), "white surface for CX light");
