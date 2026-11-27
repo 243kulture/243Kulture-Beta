@@ -19,12 +19,27 @@ import {
   applyThemeToDocument, persistThemeLocal, readStoredTheme,
 } from "./lib/theme.js";
 import {
-  PUSH_CONSENT,
+  attachPushActionListener,
+  canShowPushSoftCta,
+  disablePushDeviceToken,
   disablePushLocally,
+  dismissPushSoftCta,
   enablePushLocally,
   ensurePushPermission,
+  isPushDeliveryAvailable,
+  isPushFeatureEnabled,
+  listenForAppForeground,
+  loadPushRuntime,
+  markPushOsDenied,
   markPushPreambleSeen,
   readPushPreferences,
+  readStoredPushDevice,
+  refreshPushTokenIfGranted,
+  savePushDeviceToken,
+  setPushFamily,
+  syncPushPreferences,
+  touchUserPresence,
+  unregisterNativePush,
 } from "./lib/pushNotifications.js";
 import {
   buildDeepLink,
@@ -56,7 +71,7 @@ import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
 import ProfileHero, { ProfileCtaButton } from "./components/ProfileHero.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
-  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2, Flag, Pencil } from "lucide-react";
+  Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2, Flag, Pencil, BellRing } from "lucide-react";
 
 /*
  * ==========================================================================
@@ -730,8 +745,14 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [player, setPlayer] = useState(null); // {artist,title,sub,id}
   const [playMode, setPlayMode] = useState("watch");
-  const [notifOn, setNotifOn] = useState(() => !!readPushPreferences().master);
+  const [pushPrefs, setPushPrefs] = useState(() => readPushPreferences());
+  const notifOn = !!pushPrefs.master;
   const [pushConsentHint, setPushConsentHint] = useState("");
+  const [pushSheet, setPushSheet] = useState(null); // { context: "profile"|"messages"|"follow" }
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushDeliveryReady, setPushDeliveryReady] = useState(false);
+  const [pushFollowCta, setPushFollowCta] = useState(false);
+  const [pushCtaTick, setPushCtaTick] = useState(0);
   const [appearance, setAppearance] = useState(() => readStoredTheme());
   const [articleId, setArticleId] = useState("a1");
   const [heroIndex, setHeroIndex] = useState(0);
@@ -1049,6 +1070,85 @@ export default function App() {
     }
   };
 
+  // ---------- Push consent (sheet → OS prompt only on Continue) ----------
+  const pushFlagOn = isPushFeatureEnabled();
+  const pushBackendUser = pushFlagOn && isSupabaseConfigured && user?.id && user.provider !== "Preview" ? user.id : null;
+
+  const pushHintFor = (status) => ({
+    pref_only: t.push_hint_pref_saved,
+    granted: t.push_hint_granted,
+    denied: t.push_hint_denied,
+    error: t.push_hint_error,
+  }[status] || t.push_hint_denied);
+
+  const openPushSheet = (context) => {
+    markPushPreambleSeen();
+    setPushSheet({ context });
+  };
+
+  const closePushSheet = () => {
+    if (pushBusy) return;
+    const context = pushSheet?.context;
+    if (context === "messages" || context === "follow") dismissPushSoftCta(context);
+    setPushSheet(null);
+    setPushFollowCta(false);
+    setPushCtaTick((n) => n + 1);
+  };
+
+  const dismissPushCta = (context) => {
+    dismissPushSoftCta(context);
+    if (context === "follow") setPushFollowCta(false);
+    setPushCtaTick((n) => n + 1);
+  };
+
+  const confirmPushSheet = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    const res = await ensurePushPermission({ userInitiated: true });
+    let next;
+    if (res.ok) {
+      next = enablePushLocally();
+      setPushConsentHint(pushHintFor(res.status));
+      if (pushBackendUser) {
+        if (res.token) await savePushDeviceToken(supabase, { userId: pushBackendUser, token: res.token, platform: res.platform });
+        await syncPushPreferences(supabase, { userId: pushBackendUser, prefs: next });
+      }
+    } else {
+      next = res.status === "denied" ? markPushOsDenied() : disablePushLocally();
+      setPushConsentHint(pushHintFor(res.status === "denied" ? "denied" : "error"));
+    }
+    setPushPrefs(next);
+    setPushBusy(false);
+    setPushSheet(null);
+    setPushFollowCta(false);
+  };
+
+  const turnPushOff = async () => {
+    setPushPrefs(disablePushLocally());
+    setPushConsentHint("");
+    if (!pushFlagOn) return;
+    if (pushBackendUser) await disablePushDeviceToken(supabase, { userId: pushBackendUser });
+    await unregisterNativePush();
+  };
+
+  const togglePushFamily = (family) => {
+    const next = setPushFamily(family, !pushPrefs[family]);
+    setPushPrefs(next);
+    if (pushBackendUser && next.master) syncPushPreferences(supabase, { userId: pushBackendUser, prefs: next });
+  };
+
+  const pushFamilyRows = [
+    { key: "messages", lab: t.push_family_messages, sub: t.push_family_messages_sub },
+    { key: "interest_posts", lab: t.push_family_interest, sub: t.push_family_interest_sub },
+    { key: "reengagement", lab: t.push_family_reengage, sub: t.push_family_reengage_sub },
+  ];
+
+  const maybeOfferFollowPush = () => {
+    if (canShowPushSoftCta("follow", { prefs: readPushPreferences(), deliveryAvailable: pushDeliveryReady })) {
+      setPushFollowCta(true);
+    }
+  };
+
   const openArticle = (id) => { setArticleId(id); setScreen("article"); };
   const openInsta = (id) => { setArticleId(id); setScreen("article"); };
 
@@ -1124,6 +1224,56 @@ export default function App() {
     // Retry when gate opens (pending kept until allowed)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDeepLink, gate, user?.id]);
+
+  // ---------- Push wiring — every effect is a no-op while VITE_PUSH_ENABLED is off ----------
+  useEffect(() => {
+    if (!pushFlagOn) return;
+    let cancelled = false;
+    let unsub = () => {};
+    let qaForce = false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      qaForce = Boolean(params.get("uiPreview")) && params.get("pushPreview") === "1";
+    } catch { /* ignore */ }
+    loadPushRuntime().then((rt) => {
+      if (!cancelled) setPushDeliveryReady(qaForce || isPushDeliveryAvailable(rt));
+    });
+    attachPushActionListener((link) => {
+      const parsed = parseDeepLink(link);
+      if (parsed) setPendingDeepLink(parsed);
+    }).then((fn) => { if (cancelled) fn(); else unsub = fn; });
+    return () => { cancelled = true; unsub(); };
+  }, [pushFlagOn]);
+
+  // Token refresh on login — checkPermissions only, never prompts.
+  useEffect(() => {
+    if (!pushBackendUser) return;
+    let cancelled = false;
+    (async () => {
+      const prefs = readPushPreferences();
+      const res = await refreshPushTokenIfGranted({ prefs });
+      if (cancelled) return;
+      if (res.ok && res.token) {
+        await savePushDeviceToken(supabase, { userId: pushBackendUser, token: res.token, platform: res.platform });
+        await syncPushPreferences(supabase, { userId: pushBackendUser, prefs });
+      } else if (res.status === "denied") {
+        setPushPrefs(markPushOsDenied());
+        await disablePushDeviceToken(supabase, { userId: pushBackendUser });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pushBackendUser]);
+
+  // last_opened_at for the 6h re-engagement rule (debounced 5 min in the lib).
+  useEffect(() => {
+    if (!pushBackendUser) return;
+    let cancelled = false;
+    let unsub = () => {};
+    const touch = () => { touchUserPresence(supabase, { userId: pushBackendUser, prefs: readPushPreferences() }); };
+    touch();
+    listenForAppForeground(touch).then((fn) => { if (cancelled) fn(); else unsub = fn; });
+    return () => { cancelled = true; unsub(); };
+  }, [pushBackendUser]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) {
@@ -1427,7 +1577,20 @@ export default function App() {
   };
   const enterApp = (provider) => connectWith(provider);
   const logout = () => {
-    if (isSupabaseConfigured) supabase.auth.signOut();
+    const signOut = () => { if (isSupabaseConfigured) supabase.auth.signOut(); };
+    if (pushFlagOn) {
+      // Disable the device row while the session (RLS) is still valid; never block logout > 3 s.
+      const uid = pushBackendUser;
+      const cleanup = (uid && readStoredPushDevice() ? disablePushDeviceToken(supabase, { userId: uid }) : Promise.resolve())
+        .then(() => unregisterNativePush())
+        .catch(() => {});
+      Promise.race([cleanup, new Promise((r) => setTimeout(r, 3000))]).finally(signOut);
+      setPushPrefs(disablePushLocally());
+      setPushConsentHint("");
+      setPushFollowCta(false);
+    } else {
+      signOut();
+    }
     setUser(null);
     setHasCurrentCgu(false);
     setCguChecked(false);
@@ -1587,7 +1750,7 @@ export default function App() {
     const wasFollowing = followedArtists.includes(id);
     setFollowedArtists((prev) => (wasFollowing ? prev.filter((a) => a !== id) : [...prev, id]));
     if (wasFollowing) dbDelete("followed_artists", { user_id: user?.id, artist_id: id });
-    else { dbInsert("followed_artists", { user_id: user?.id, artist_id: id }); addXp(5); }
+    else { dbInsert("followed_artists", { user_id: user?.id, artist_id: id }); addXp(5); maybeOfferFollowPush(); }
   };
 
   const todayFact = HISTORY_FACTS[new Date().getDate() % HISTORY_FACTS.length];
@@ -1803,6 +1966,7 @@ export default function App() {
     const following = isFollowing(followingUsers, id);
     if (!isSupabaseConfigured) {
       setFollowingUsers((prev) => (following ? prev.filter((x) => x !== id) : [...prev, id]));
+      if (!following) maybeOfferFollowPush();
       return;
     }
     setFriendActionBusy(`follow:${id}`);
@@ -1815,6 +1979,7 @@ export default function App() {
       return;
     }
     setFollowingUsers((prev) => (following ? prev.filter((x) => x !== id) : [...prev, id]));
+    if (!following) maybeOfferFollowPush();
     if (viewedProfile?.id === id) {
       setViewedProfileStats((prev) => ({
         ...prev,
@@ -2930,6 +3095,20 @@ export default function App() {
         .sheet-actions .sheet-btn.primary { background:var(--gold); color:#1a1200; }
         .sheet-actions .sheet-btn.danger { background:rgba(232,90,90,0.18); color:var(--red); border:1px solid rgba(232,90,90,0.45); }
         .sheet-actions .sheet-btn.ghost { background:var(--glass); color:var(--muted); border:1px solid var(--glass-border); }
+        .push-sheet-kicker { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); font-weight:800; margin-bottom:6px; }
+        .push-sheet .settings-row.push-focus { border-color:var(--gold); }
+        .push-sheet-caps { font-size:11px; color:var(--muted); line-height:1.45; margin:4px 0 10px; padding:10px 12px; border-left:2px solid var(--gold); background:var(--glass); border-radius:0 10px 10px 0; }
+        .push-family-list { margin:-2px 0 10px 12px; padding-left:10px; border-left:1px solid var(--glass-border); }
+        .push-family-list .settings-row { padding:10px 12px; margin-bottom:8px; }
+        .push-cta { display:flex; gap:10px; align-items:flex-start; background:var(--glass); border:1px solid var(--glass-border); border-left:3px solid var(--gold); border-radius:14px; padding:12px 14px; margin:0 0 12px; }
+        .push-cta .push-cta-ic { color:var(--gold); margin-top:1px; display:flex; }
+        .push-cta .push-cta-title { font-size:12.5px; font-weight:700; color:var(--text); }
+        .push-cta .push-cta-sub { font-size:11px; color:var(--muted); margin-top:2px; line-height:1.4; }
+        .push-cta .push-cta-actions { display:flex; gap:8px; margin-top:10px; }
+        .push-cta .push-cta-btn { padding:7px 12px; border-radius:10px; font-size:11.5px; font-weight:700; cursor:pointer; }
+        .push-cta .push-cta-btn.primary { background:var(--gold); color:#1a1200; }
+        .push-cta .push-cta-btn.ghost { background:transparent; color:var(--muted); border:1px solid var(--glass-border); }
+        .push-cta-float { position:absolute; left:12px; right:12px; bottom:84px; z-index:70; margin:0; background:var(--surface); box-shadow:0 12px 30px rgba(0,0,0,.35); }
         .report-inline-btn { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer; padding:6px 10px; border-radius:16px; border:1px solid var(--glass-border); background:transparent; }
         .report-inline-btn:hover { color:var(--red); border-color:rgba(232,90,90,0.45); }
         .connected-pill { display:inline-flex; align-items:center; gap:6px; background:var(--glass); border:1px solid var(--glass-border); border-radius:20px; padding:4px 12px; font-size:10.5px; color:var(--gold); margin:0 auto 18px; }
@@ -4417,29 +4596,30 @@ export default function App() {
                   className={`switch${notifOn ? " on" : ""}`}
                   role="switch"
                   aria-checked={notifOn}
-                  onClick={async () => {
-                    if (notifOn) {
-                      disablePushLocally();
-                      setNotifOn(false);
-                      setPushConsentHint("");
-                      return;
-                    }
-                    // Consent-first: explain, then permission only on this user intent
-                    markPushPreambleSeen();
-                    setPushConsentHint(PUSH_CONSENT.why);
-                    const res = await ensurePushPermission({ userInitiated: true });
-                    if (res.ok) {
-                      enablePushLocally();
-                      setNotifOn(true);
-                      setPushConsentHint(res.message || PUSH_CONSENT.deniedKeepsAppUsable);
-                    } else {
-                      disablePushLocally();
-                      setNotifOn(false);
-                      setPushConsentHint(res.message || `${PUSH_CONSENT.settingsHint} ${PUSH_CONSENT.deniedKeepsAppUsable}`);
-                    }
-                  }}
+                  aria-label={t.notif_toggle_lab}
+                  tabIndex={0}
+                  onClick={() => { if (notifOn) turnPushOff(); else openPushSheet("profile"); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (notifOn) turnPushOff(); else openPushSheet("profile"); } }}
                 />
               </div>
+              {notifOn && (
+                <div className="push-family-list" role="group" aria-label={t.push_families_label}>
+                  {pushFamilyRows.map((f) => (
+                    <div className="settings-row" key={f.key}>
+                      <div><div className="lab">{f.lab}</div><div className="sub2">{f.sub}</div></div>
+                      <div
+                        className={`switch${pushPrefs[f.key] ? " on" : ""}`}
+                        role="switch"
+                        aria-checked={!!pushPrefs[f.key]}
+                        aria-label={f.lab}
+                        tabIndex={0}
+                        onClick={() => togglePushFamily(f.key)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePushFamily(f.key); } }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
               {pushConsentHint ? <div className="note" style={{ marginBottom: 12 }}>{pushConsentHint}</div> : null}
               <div className="card" onClick={openNotifs}>
                 <div className="thumb">🔔</div>
@@ -5165,6 +5345,19 @@ export default function App() {
 
                   {communityTab === "messages" && (
                     <>
+                      {pushCtaTick >= 0 && canShowPushSoftCta("messages", { prefs: pushPrefs, deliveryAvailable: pushDeliveryReady }) && (
+                        <div className="push-cta" role="region" aria-label={t.push_cta_messages_title}>
+                          <span className="push-cta-ic" aria-hidden="true"><BellRing size={16} strokeWidth={2.2} /></span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="push-cta-title">{t.push_cta_messages_title}</div>
+                            <div className="push-cta-sub">{t.push_cta_messages_sub}</div>
+                            <div className="push-cta-actions">
+                              <div className="push-cta-btn primary" role="button" tabIndex={0} onClick={() => openPushSheet("messages")}>{t.push_cta_enable}</div>
+                              <div className="push-cta-btn ghost" role="button" tabIndex={0} onClick={() => dismissPushCta("messages")}>{t.push_cta_later}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {friends.length === 0 ? (
                         <div className="cx-empty"><span className="ic">💬</span><div className="txt">{t.msg_empty}</div></div>
                       ) : isSupabaseConfigured ? (
@@ -5573,6 +5766,71 @@ export default function App() {
               })()}
             </div>
           </>
+        )}
+
+        {/* Push: soft CTA after a follow (only when flag on + native delivery available) */}
+        {pushFollowCta && !pushSheet && !notifOn && (
+          <div className="push-cta push-cta-float" role="region" aria-label={t.push_cta_follow_title}>
+            <span className="push-cta-ic" aria-hidden="true"><BellRing size={16} strokeWidth={2.2} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="push-cta-title">{t.push_cta_follow_title}</div>
+              <div className="push-cta-sub">{t.push_cta_follow_sub}</div>
+              <div className="push-cta-actions">
+                <div className="push-cta-btn primary" role="button" tabIndex={0} onClick={() => openPushSheet("follow")}>{t.push_cta_enable}</div>
+                <div className="push-cta-btn ghost" role="button" tabIndex={0} onClick={() => dismissPushCta("follow")}>{t.push_cta_later}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Push consent sheet — explains why before any OS prompt */}
+        {pushSheet && (
+          <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-labelledby="push-sheet-title" onClick={closePushSheet}>
+            <div className="sheet-card push-sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="push-sheet-kicker">{t.sec_notifs}</div>
+              <div className="sheet-title" id="push-sheet-title">{t.push_sheet_title}</div>
+              <div className="sheet-sub">{t.push_sheet_sub}</div>
+              {pushFamilyRows.map((f) => {
+                const focus = (pushSheet.context === "messages" && f.key === "messages")
+                  || (pushSheet.context === "follow" && f.key === "interest_posts");
+                return (
+                  <div className={`settings-row${focus ? " push-focus" : ""}`} key={f.key}>
+                    <div><div className="lab">{f.lab}</div><div className="sub2">{f.sub}</div></div>
+                    <div
+                      className={`switch${pushPrefs[f.key] ? " on" : ""}`}
+                      role="switch"
+                      aria-checked={!!pushPrefs[f.key]}
+                      aria-label={f.lab}
+                      tabIndex={0}
+                      onClick={() => togglePushFamily(f.key)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePushFamily(f.key); } }}
+                    />
+                  </div>
+                );
+              })}
+              <div className="push-sheet-caps">{t.push_sheet_caps}</div>
+              <div className="sheet-sub" style={{ marginBottom: 10 }}>{pushDeliveryReady ? t.push_sheet_os_note : t.push_sheet_web_note}</div>
+              {(() => {
+                const anyFamily = pushFamilyRows.some((f) => pushPrefs[f.key]);
+                const disabled = pushBusy || !anyFamily;
+                return (
+                  <div className="sheet-actions">
+                    <div className="sheet-btn ghost" role="button" tabIndex={0} onClick={closePushSheet}>{t.push_sheet_later}</div>
+                    <div
+                      className="sheet-btn primary"
+                      role="button"
+                      tabIndex={0}
+                      aria-disabled={disabled}
+                      style={{ opacity: disabled ? 0.5 : 1 }}
+                      onClick={() => { if (!disabled) confirmPushSheet(); }}
+                    >
+                      {pushBusy ? "…" : t.push_sheet_continue}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
         )}
 
         {/* Account deletion confirm sheet */}
