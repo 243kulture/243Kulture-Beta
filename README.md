@@ -67,9 +67,12 @@ Pas d'accès communauté / fil / stories sans session.
 
 ## 3. Authentification
 
-- **Google** : client prêt dans l'app ; activer le provider dans le Dashboard
-  avec Client ID / Secret Google Cloud (ne jamais les committer). Guide exact
-  des URLs : [`docs/GOOGLE_OAUTH_AUTH_URLS.md`](docs/GOOGLE_OAUTH_AUTH_URLS.md).
+- **Google** : client prêt dans l'app (web + retour natif
+  `kulture243://auth/callback`), **masqué tant que
+  `VITE_GOOGLE_OAUTH_ENABLED` ≠ `true`**. Activer le provider dans le Dashboard
+  avec Client ID / Secret Google Cloud (ne jamais les committer), puis passer le
+  flag à `true`. Guide exact des URLs (web / Android / iOS) :
+  [`docs/GOOGLE_OAUTH_AUTH_URLS.md`](docs/GOOGLE_OAUTH_AUTH_URLS.md).
   Redirect plateforme : `https://<projet>.supabase.co/auth/v1/callback`.
 - **E-mail + mot de passe** + récupération : actifs dans l'app.
 - **Meta / TikTok** : non affichés tant que les providers OAuth ne sont pas

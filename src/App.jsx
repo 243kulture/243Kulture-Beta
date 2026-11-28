@@ -66,12 +66,23 @@ import {
   REPORT_REASONS,
   submitModerationReport,
 } from "./lib/moderation.js";
-import { isGoogleProviderDisabledError } from "./lib/googleOAuth.js";
+import {
+  closeSystemBrowser,
+  completeOAuthFromUrl,
+  isGoogleOAuthEnabled,
+  isGoogleProviderDisabledError,
+  isNativeRuntime,
+  isOAuthCallbackUrl,
+  openOAuthInSystemBrowser,
+  resolveOAuthRedirectTo,
+} from "./lib/googleOAuth.js";
 import StoryInAppCamera from "./components/StoryInAppCamera.jsx";
 import ProfileHero, { ProfileCtaButton } from "./components/ProfileHero.jsx";
 import { Home, Mic, Newspaper, Heart, User, Search, Bell, Share2, ArrowLeft, Check,
   Users, MessageCircle, Send, Trophy, BookOpen, Globe, Lock, ChevronRight, LogOut,
   Plus, X, Image as ImageIcon, Video, Type as TypeIcon, Compass, TrendingUp, Star, Repeat2, Flag, Pencil, BellRing } from "lucide-react";
+
+const GOOGLE_OAUTH_ENABLED = isGoogleOAuthEnabled();
 
 /*
  * ==========================================================================
@@ -1211,6 +1222,10 @@ export default function App() {
     }
     let unsub = () => {};
     listenForAppUrlOpen((url) => {
+      if (isOAuthCallbackUrl(url)) {
+        completeNativeOAuth(url);
+        return;
+      }
       const parsed = parseDeepLink(url);
       if (parsed) setPendingDeepLink(parsed);
     }).then((fn) => { unsub = fn; });
@@ -1525,6 +1540,7 @@ export default function App() {
   };
 
   const signInWithGoogle = async () => {
+    if (!GOOGLE_OAUTH_ENABLED) { go("auth"); return; }
     if (!readStoredLang()) { setScreen("languagePicker"); setAuthMessage(t.lang_picker_required); return; }
     if (!canSubmitAuth({ hasLanguage: true, termsAccepted: legalAccepted })) {
       setScreen("termsGate");
@@ -1538,10 +1554,11 @@ export default function App() {
     setAuthMessage("");
     setAuthLoading(true);
     try { sessionStorage.setItem("243kulture_pending_cgu", REQUIRED_CGU_VERSION); } catch { /* ignore */ }
+    const native = isNativeRuntime();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: resolveOAuthRedirectTo({ native }),
         skipBrowserRedirect: true,
         queryParams: { prompt: "select_account" },
       },
@@ -1564,7 +1581,25 @@ export default function App() {
     } catch {
       // CORS / réseau : on tente quand même la redirection OAuth
     }
+    if (native) {
+      // Google bloque les WebViews intégrées : navigateur système obligatoire.
+      const opened = await openOAuthInSystemBrowser(data.url, { onClosed: () => setAuthLoading(false) });
+      if (!opened) {
+        setAuthLoading(false);
+        setAuthMessage(t.oauth_error);
+      }
+      return;
+    }
     window.location.assign(data.url);
+  };
+
+  const completeNativeOAuth = async (url) => {
+    const strings = getUiStrings(readStoredLang() || "fr");
+    const result = await completeOAuthFromUrl(supabase, url);
+    closeSystemBrowser();
+    setAuthLoading(false);
+    if (result.ok) return;
+    setAuthMessage(result.reason === "cancelled" ? strings.oauth_cancelled : strings.oauth_error);
   };
 
   const connectWith = (provider) => {
@@ -3823,7 +3858,7 @@ export default function App() {
             <div className="onb-title">{t.onb_title}</div>
             <div className="onb-sub">{t.onb_sub}</div>
             <div className="auth-row" style={{ opacity: !authLoading ? 1 : 0.45, pointerEvents: !authLoading ? "auto" : "none" }}>
-              <div className="auth-btn google" onClick={() => enterApp("Google")}><span className="auth-ic">G</span> {authLoading ? t.oauth_redirecting : t.btn_google}</div>
+              {GOOGLE_OAUTH_ENABLED && <div className="auth-btn google" onClick={() => enterApp("Google")}><span className="auth-ic">G</span> {authLoading ? t.oauth_redirecting : t.btn_google}</div>}
               <div className="auth-btn" onClick={() => { setAuthMode("signup"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">✉</span> {t.btn_signup}</div>
               <div className="auth-btn" onClick={() => { setAuthMode("login"); setAuthMessage(""); go("auth"); }}><span className="auth-ic">↪</span> {t.btn_login}</div>
             </div>
