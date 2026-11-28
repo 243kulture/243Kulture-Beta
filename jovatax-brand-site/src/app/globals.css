@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --jv-deep: #0a1f1a;
+  --jv-green: #123b32;
+  --jv-gold: #f4b740;
+  --jv-ink: #e8f2ee;
+  --jv-muted: #a8c0b6;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--jv-ink);
+  background: var(--jv-deep);
+}
+
+.bg-jovatax {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, #1a4a3e 0%, transparent 55%),
+    radial-gradient(900px 500px at 90% 20%, #0f2f28 0%, transparent 50%),
+    linear-gradient(165deg, #0a1f1a 0%, #123b32 45%, #071612 100%);
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-body {
+  font-family: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+}
+
+.mesh-pulse {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(244, 183, 64, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 60%, rgba(47, 106, 135, 0.12), transparent 45%);
+  animation: pulse-mesh 12s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-mesh {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+.rise-in {
+  animation: rise 0.85s ease-out both;
+}
+
+.rise-in-delay {
+  animation: rise 0.85s ease-out 0.18s both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
