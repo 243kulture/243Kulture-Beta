@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.vite/
+incoming/
+*.log
+.DS_Store
